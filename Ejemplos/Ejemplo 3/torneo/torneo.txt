@@ -1,0 +1,124 @@
+Procedimiento torneo(E: opcion: Booleano, E/S: I, J, mínimo, máximo, Contrincantes[I], usuario, Luchadores[I].id, Luchadores[I].ataque, Luchadores[I].defensa, Luchadores[I].velocidad, Enfrentamientos[K], Ganador: Entero, Luchadores[I].nombre: Cadena, Etapa_Actual: Entero, Ranking_Final[I]: Entero);
+Inicio
+	Contrincantes(opcion, mínimo, máximo, I, J, Contrincantes[I], usuario);
+	Reparticion_Batallas(Enfrentamientos[K], Ganador, Luchadores[I].id, Luchadores[I].vida, Luchadores[I].ataque, Luchadores[I].defensa, Luchadores[I].velocidad, Luchadores[I].victorias, Luchadores[I].derrotas, Luchadores[I].nombre, Etapa_Actual);
+	Mostrar << Reparticion_Batallas;
+Fin_Procedimiento
+
+
+Procedimiento Contrincantes (E: opcion: Booleano, E/S: mínimo, máximo, I, J, Contrincantes[I]: Entero);
+Inicio
+	Var Valor_K: Entero;
+	Num: Entero;
+	mínimo = 1;
+	máximo = 31;
+	Si (opcion = 0) entonces;
+		Contrincantes[1] = Luchadores[32].id;
+	Sino
+		Contrincantes[1] = usuario;
+	Fin_Si
+	Para (I = 1 hasta I = 16) hacer;
+		Si (I > 1) entonces;
+			Num = Aleatorio(mínimo, máximo);
+			Valor_K = 2;
+			Para (J = 1 hasta J = Valor_K) hacer;
+				Mientras (Num = Contrincantes[J]) hacer;
+					Num = Aleatorio(mínimo, máximo);
+				Fin_Mientras
+				Contrincantes[I] = Num;
+				Si (Valor_K <= 15) entonces;
+					Valor_K = Valor_K + 1;
+				Fin_Si
+			Fin_Para
+		Fin_Si
+	Fin_Para
+Fin_Procedimiento
+
+Procedimiento Reparticion_Batallas (E/S: Enfrentamientos[K], Ganador, Luchadores[I].id, Luchadores[I].vida, Luchadores[I].ataque, Luchadores[I].defensa, Luchadores[I].velocidad, Luchadores[I].victorias, Luchadores[I].derrotas: Entero, Luchadores[I].nombre: Cadena, Etapa_Actual: Entero);
+Inicio
+	Var Batalla_Octavos[2], Batalla_Cuartos[2], Batalla_Semis[2], Batalla_Final[2]: Entero; 
+	Contador_Batallas = 1, Contador_Batallas2 = 1, Contador_Batallas3 = 1, Contador_Batallas4 = 1: Entero; 
+	Resultados_Octavos[8], Resultados_Cuartos[4], Resultados_Semis[2], Resultado_Final: Entero;
+
+	Mostrar << "Bienvenido al súper torneo dimensional, a continuación los octavos de final.";
+	Etapa_Actual = 8; // 8 = octavos
+	Para (I = 1 hasta I = 8) hacer;
+		Para (K = 1 hasta K = 2) hacer; 
+			Batalla_Octavos [K] = Contrincantes[Contador_Batallas];
+			Contador_Batallas = Contador_Batallas + 1;	
+			Enfrentamientos[K] = Batalla_Octavos[K];
+		Fin_Para
+		Batalla(Ganador, Enfrentamientos[I], Luchadores[I].ataque, Luchadores[I].defensa, Luchadores[I].velocidad, Luchadores[I].victorias, Luchadores[I].derrotas, Luchadores[I].nombre);
+		Mostrar << Batalla;
+		Resultados_Octavos[I] = Ganador;
+	Fin_Para
+	
+	Mostrar << "Esos fueron los octavos de final, pasemos a la segunda fase, los cuartos de final.";
+	Etapa_Actual = 4; // 4 = cuartos
+	Para (I = 1 hasta I = 4) hacer;
+		Para (K = 1 hasta K = 2) hacer; 
+Batalla_Cuartos[K] = Resultados_Octavos[Contador_Batallas2];
+			Contador_Batallas2 = Contador_Batallas2 + 1;
+			Enfrentamientos[K] = Batalla_Cuartos[K];
+		Fin_Para
+		Batalla(Ganador, Enfrentamientos[I], Luchadores[I].ataque, Luchadores[I].defensa, Luchadores[I].velocidad, Luchadores[I].victorias, Luchadores[I].derrotas, Luchadores[I].nombre);
+		Mostrar << Batalla;
+		Resultados_Cuartos[I] = Ganador;
+	Fin_Para
+
+	Mostrar << "Esos fueron los cuartos de final, pasemos a la tercera fase, las semifinales.";
+	Etapa_Actual = 2; // 2 = semis
+	Para (I = 1 hasta I = 2) hacer;
+		Para (K = 1 hasta K = 2) hacer; 
+			Batalla_Semis[K] = Resultados_Cuartos[Contador_Batallas3];
+			Contador_Batallas3 = Contador_Batallas3 + 1;
+			Enfrentamientos[K] = Batalla_Semis[K];
+		Fin_Para
+		Batalla(Ganador, Enfrentamientos[I], Luchadores[I].ataque, Luchadores[I].defensa, Luchadores[I].velocidad, Luchadores[I].victorias, Luchadores[I].derrotas, Luchadores[I].nombre);
+		Mostrar << Batalla;
+		Resultados_Semis[I] = Ganador;
+	Fin_Para
+	
+	Mostrar << "Finalmente, el momento que se ha estado esperando, la Gran Final del super torneo dimensional!";
+	Etapa_Actual = 1; // 1 = final
+	Para (K = 1 hasta K = 2) hacer; 
+		Batalla_Final[K] = Resultados_Semis[Contador_Batallas4];
+		Contador_Batallas4 = Contador_Batallas4 + 1;
+		Enfrentamientos[K] = Batalla_Final[K];
+	Fin_Para
+	Batalla(Ganador, Enfrentamientos[I], Luchadores[I].ataque, Luchadores[I].defensa, Luchadores[I].velocidad, Luchadores[I].victorias, Luchadores[I].derrotas, Luchadores[I].nombre);
+	Mostrar << Batalla;
+	Resultado_Final = Ganador;
+Fin_Procedimiento
+
+	 
+Procedimiento Resultados (E: Contrincantes[I]: Entero, E/S: Ganador, Luchadores[I].id, Luchadores[I].ultima_etapa: Entero, Luchadores[I].nombre: Cadena);
+Inicio
+	Var aux, a, b, i, j, Ranking_Final[16]: Entero;
+
+	Mostrar << ”Estos fueron los resultados de la Partida”;
+	Mostrar << ”Personaje ganador: ”, Luchadores[Ganador].nombre;
+	Mostrar << ”Personaje seleccionado: ”, Luchadores[usuario].nombre;
+	Mostrar << ”A continuación todas las posiciones”;
+	// Aquí va la logica del Ranking_Final
+	Para (i = 1 hasta i = 16) hacer;
+		Ranking_Final[i] = Contrincantes[i]
+	Fin_Para
+
+	Para (i = 1 hasta i = 15) Hacer;
+		Para(j = 1 hasta j = 16-i) Hacer; 
+		   a = Ranking_Final[j]
+		   b = Ranking_Final[j+1];
+		   Si (Luchadores[a].ultima_etapa > Luchadores[b].ultima_etapa) Entonces;
+		   	 aux = Ranking_Final[j];
+			 Ranking_Final[j] = Ranking_Final[j+1];
+			 Ranking_Final[j+1] = aux;
+		   Fin_si
+		Fin_Para
+	Fin_Para
+
+	Para (i = 1 hasta i=16) Hacer;
+		Mostrar << i, "Luchador: ", Luchadores[Ranking_Final[i]].nombre;
+	Fin_Para
+			
+Fin_Procedimiento

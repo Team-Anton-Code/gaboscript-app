@@ -1,0 +1,17 @@
+Funcion lado_mayor(Encargado.Valores.Long1, Encargado.Valores.Long2, Encargado.Valores.Long3: Real): Real;
+Inicio
+  Var LM: Real;
+  LM = Encargado.Valores.Long1;
+
+  Si (Encargado.Valores.Long2 > LM) AND (Encargado.Valores.Long2 > Encargado.Valores.Long3) Entonces;
+    LM = Encargado.Valores.Long2;
+    Sino
+    Si (Encargado.Valores.Long3 > LM) AND (Encargado.Valores.Long3 > Encargado.Valores.Long2) Entonces;
+      LM = Encargado.Valores.Long3;
+      Sino
+      LM = Encargado.Valores.Long1;
+    Fin_Si
+  Fin_Si
+
+  Devolver (LM);
+Fin_Funcion

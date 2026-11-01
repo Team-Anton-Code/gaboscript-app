@@ -1,0 +1,59 @@
+Procedimiento Batalla(E/S: Ganador, Etapa_Actual, Enfrentamiento[i], Luchadores[I].ataque, Luchadores[I].defensa, Luchadores[I].velocidad, Luchadores[I].victorias, Luchadores[I].derrotas, Luchadores[I].ultima_etapa: Entero, Luchadores[I].nombre: Cadena);
+
+Inicio
+  Var Luchador1, Luchador2, Daño_Inflingido: Entero;
+  Var Luchador1_vida = 1, Luchador2_vida = 1, Turno = 1: Entero;
+  mínimo = 1;
+  máximo = 100;
+  Luchador1 = Enfrentamientos[1];
+  Luchador2 = Enfrentamientos[2];
+
+  Si (Luchadores[Luchador1].velocidad > Luchadores[Luchador2].velocidad) Entonces;
+    atacante = Luchador1;
+    defensor = Luchador2;
+
+  Sino
+    atacante = Luchador2;
+    defensor = Luchador1;
+  Fin_Si
+  Luchador1_vida = Luchadores[atacante].vida;
+  Luchador2_vida = Luchadores[defensor].vida;
+  Mientras (Luchador1_vida > 0) AND (Luchador2_vida > 0) Hacer;
+    esquive = Aleatorio(mínimo, máximo);
+    Mostrar << "Turno", Turno;
+
+    Si (esquive < 80) Entonces;
+      Si (Luchadores[atacante].ataque > Luchadores[defensor].defensa) Entonces;
+        Daño_Inflingido = Luchadores[atacante].ataque - Luchadores[defensor].defensa;
+
+      Sino
+        Daño_Inflingido = (Luchadores[atacante].ataque - Luchadores[defensor].defensa) / 0.10;
+      Fin_Si
+
+      Luchador2_vida = Luchador2_vida - Daño_Inflingido;
+      Mostrar << Luchadores.nombre[atacante], "ha hecho un daño de ", Daño_Inflingido, " el oponente", Luchadores[defensor].nombre, "quedó con: ", Luchador2_vida, "puntos de vida";
+
+    Sino
+      Mostrar << "Ha esquivado el ataque.";
+    Fin_Si
+
+    Si (Luchador2_vida <= 0) Entonces;
+      Mostrar << Luchadores[defensor].nombre, "ha sido derrotado.";
+      Luchadores[atacante].victorias = Luchadores[atacante].victorias + 1;
+      Si (Etapa_Actual = 1) Entonces;
+        Luchadores[atacante].ultima_etapa = 0; // 0 = ganador del torneo
+      Fin_Si
+      Luchadores[defensor].derrotas = Luchadores[defensor].derrotas + 1;
+      Luchadores[defensor].ultima_etapa = Etapa_Actual;
+      Ganador = Luchadores[atacante].id;
+    Fin_Si
+
+    aux = atacante;
+    atacante = defensor;
+    defensor = aux;
+    Turno = Turno + 1;
+    aux = Luchador1_vida;
+    Luchador1_vida = Luchador2_vida;
+    Luchador2_vida = aux;
+  Fin_Mientras
+Fin_Procedimiento

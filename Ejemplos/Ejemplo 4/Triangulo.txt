@@ -1,0 +1,25 @@
+Algoritmo Triangulo
+
+Registro: Experimento;
+  Nombre_Responsable: Cadena;
+  Apellido_Responsable: Cadena;
+  Laboratorio: Cadena;
+  Longitudes;
+  Resultado: Cadena;
+Fin_Registro;
+
+Registro: Longitudes;
+  Long1: Real;
+  Long2: Real;
+  Long3: Real;
+Fin_Registro;
+
+Inicio
+  Var Experimento: Encargado, Longitudes: Valores;
+  datos(Encargado.Nombre_Responsable, Encargado.Apellido_Responsable, Encargado.Laboratorio, Encargado.Valores.Long1, Encargado.Valores.Long2, Encargado.Valores.Long3);
+  Mostrar << datos;
+  M = lado_mayor(Encargado.Valores.Long1, Encargado.Valores.Long2, Encargado.Valores.Long3);
+  calculo(Encargado.Valores.Long1, Encargado.Valores.Long2, Encargado.Valores.Long3, M, Encargado.Resultado);
+  impresión(Encargado.Laboratorio, Encargado.Resultado, Encargado.Valores.Long1, Encargado.Valores.Long2, Encargado.Valores.Long3);
+  Mostrar << Impresion;
+Fin

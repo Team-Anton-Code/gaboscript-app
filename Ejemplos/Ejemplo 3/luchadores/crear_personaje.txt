@@ -1,0 +1,45 @@
+Procedimiento crear_personaje(E/S: Luchadores[i].nombre: Cadena, Luchadores[i].vida, Luchadores[i].ataque, Luchadores[i].defensa, Luchadores[i].velocidad: Entero);
+Inicio
+  Var nombre: Cadena;
+  Var tipo, i: Entero;
+  Var seguir_editando = 1: Booleano;
+  Var tipos[4]: Cadena;
+
+  tipos[1] = "Agresivo: enfocado en ataques rapidos";
+  tipos[2] = "Tanque: ataque considerable, poca velocidad";
+  tipos[3] = "Equilibrado: stats equilibradas";
+  tipos[4] = "Raton: stats terribles. Gana por pura suerte";
+
+  Mostrar << "Bienvenido al modulo para crear un personaje!";
+  
+  Mientras (seguir_editando = 1) Hacer;
+    Mostrar << "Elige un nombre para tu personaje";
+    Leer >> nombre;
+
+    Mostrar << "Tenemos los siguientes tipos para tu personaje";
+    Para (i = 1 Hasta i = 4) Hacer;
+      Mostrar << tipos[i];
+    Fin_Para
+
+    Mostrar << "Elige uno para tu personaje";
+    Leer >> tipo;
+
+    Mientras (tipo < 1 Or tipo > 4) Hacer;
+      Mostrar << tipo, " no es una opcion valida. Intenta nuevamente";
+      Leer >> tipo;
+    Fin_Mientras
+
+    Luchadores[32].nombre = nombre;
+    
+    asignar_stats(tipo, Luchadores[I].vida, Luchadores[I].ataque, Luchadores[I].defensa, Luchadores[I].velocidad);
+
+    Mostrar << "Este es tu peronaje: ";
+    Mostrar << Luchadores[32].nombre;
+    Mostrar << "Ataque: ", Luchadores[32].ataque;
+    Mostrar << "Defensa: ", Luchadores[32].defensa;
+    Mostrar << "Velocidad: ", Luchadores[32].velocidad;
+
+    Mostrar << "Deseas seguir editando o te quedas con este personaje? (1: seguir editando, 0: salir)";
+    Leer >> seguir_editando;
+  Fin_Mientras
+Fin_Procedimiento

@@ -1,0 +1,23 @@
+Procedimiento asignar_stats(E: tipo: Entero, E/S: Luchadores[I].ataque, Luchadores[I].defensa, Luchadores[I].velocidad: Entero);
+Inicio
+  En_Caso (tipo > 0) Sea;
+    Caso (tipo = 1);
+      Luchadores[32].ataque = 70;
+      Luchadores[32].defensa = 45;
+      Luchadores[32].velocidad = 80;
+    Caso (tipo = 2);
+      Luchadores[32].ataque = 40;
+      Luchadores[32].defensa = 85;
+      Luchadores[32].velocidad = 30;
+    Caso (tipo = 3);
+      Luchadores[32].ataque = 65;
+      Luchadores[32].defensa = 60;
+      Luchadores[32].velocidad = 70;
+    Caso (tipo = 4);
+      Luchadores[32].ataque = 40;
+      Luchadores[32].defensa = 30;
+      Luchadores[32].velocidad = 45;
+    Otro_caso
+      Mostrar << "Tipo no valido";
+  Fin_Caso
+Fin_Procedimiento

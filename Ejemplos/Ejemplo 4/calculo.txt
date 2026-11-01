@@ -1,0 +1,19 @@
+Procedimiento calculo(E: Encargado.Valores.Long1, Encargado.Valores.Long2, Encargado.Valores.Long3, M: Real, S: Encargado.Resultado: Cadena);
+Inicio
+  Var S: Real;
+  S = [(Encargado.Valores.Long1 + Encargado.Valores.Long2 + Encargado.Valores.Long3)- M];
+
+  En_Caso (M < S) Sea;
+    Caso (Encargado.Valores.Long1 = Encargado.Valores.Long2) AND (Encargado.Valores.Long1 = Encargado.Valores.Long3) AND (Encargado.Valores.Long2 = Encargado.Valores.Long3);
+      Encargado.Resultado = "Hay un Triangulo, y es un Triangulo de tipo Equiláteros";
+
+    Caso (Encargado.Valores.Long1 = Encargado.Valores.Long2) OR (Encargado.Valores.Long1 = Encargado.Valores.Long3) OR (Encargado.Valores.Long2 = Encargado.Valores.Long3);
+      Encargado.Resultado = "Hay un Triangulo, y es un Triangulo de tipo Isósceles";
+
+    Caso (Encargado.Valores.Long1 != Encargado.Valores.Long2) AND (Encargado.Valores.Long1 != Encargado.Valores.Long3) AND (Encargado.Valores.Long2 != Encargado.Valores.Long3);
+      Encargado.Resultado = "Hay un Triangulo, y es un Triangulo tipo Escalenos";
+
+    Otro_Caso
+      Encargado.Resultado = "No Hay triangulo de ningún tipo";
+  Fin_Caso
+Fin_Procedimiento

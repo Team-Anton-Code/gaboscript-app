@@ -1,0 +1,9 @@
+Procedimiento impresión(E/S: Encargado.Laboratorio, Encargado.Resultado: Cadena, Encargado.Valores.Long1, Encargado.Valores.Long2, Encargado.Valores.Long3: Real);
+Inicio
+  Mostrar << "Estos fueros los resultados: ";
+  Mostrar << "El Laboratorio fue: ", Encargado.Laboratorio;
+  Mostrar << "La Primera Longitud fue: ", Encargado.Valores.Long1;
+  Mostrar << "La Segunda Longitud fue: ", Encargado.Valores.Long2;
+  Mostrar << "La Tercera Longitud fue: ", Encargado.Valores.Long3;
+  Mostrar << "El Resultado Final fue: ", Encargado.Resultado;
+Fin_Procedimiento

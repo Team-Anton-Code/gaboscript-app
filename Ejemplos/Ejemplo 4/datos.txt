@@ -1,0 +1,23 @@
+Procedimientos datos(E/S: Encargado.Nombre_Responsable, Encargado.Apellido_Responsable, Encargado.Laboratorio: Cadena, Encargado.Valores.Long1, Encargado.Valores.Long2, Encargado.Valores.Long3: Real);
+Inicio
+  Mostrar << "Ingrese su nombre";
+  Leer >> Encargado.Nombre_Responsable;
+  Mostrar << "Ingrese su Apellido";
+  Leer >> Encargado.Apellido_Responsable;
+  Mostrar << "Ingrese el laboratorio del experimento";
+  Leer >> Encargado.Laboratorio;
+  Mostrar << "Ingrese el valor del primer lado";
+  Leer >> Encargado.Valores.Long1;
+  Mostrar << "Ingrese el valor del segundo lado";
+  Leer >> Encargado.Valores.Long2;
+  Mostrar << "Ingrese el valor del Tercer lado";
+  Leer >> Encargado.Valores.Long3;
+
+  Mientras (Encargado.Valores.Long1 <= 0) OR (Encargado.Valores.Long2 <= 0) OR (Encargado.Valores.Long3 <= 0) Hacer;
+    Mostrar << "Error en los datos ingresados";
+    Mostrar << "Ingrese valores positivos";
+    Leer >> Encargado.Valores.Long1;
+    Leer >> Encargado.Valores.Long2;
+    Leer >> Encargado.Valores.Long3;
+  Fin_Mientras
+Fin_Procedimiento

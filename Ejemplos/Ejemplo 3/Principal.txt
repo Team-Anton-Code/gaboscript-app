@@ -1,0 +1,43 @@
+Algoritmo super_torneo
+Registro: Luchador;
+  id: Entero;
+  nombre: Cadena;
+  vida: Entero;
+  ataque: Entero;
+  defensa: Entero;
+  velocidad: Entero;
+
+  victorias: Entero;
+  derrotas: Entero;
+  ultima_etapa: Entero; // Ultima etapa en la que participó: 8 = octavos, 4 = cuartos, 2 = semis, 1 = final, 0 = ganador
+Fin_Registro;
+
+Inicio
+  Var Luchador: Luchadores[32];
+  Var opcion, continuar = 1: Booleano;
+  Var mínimo, máximo, Ganador, Contrincantes[16], Enfrentamientos[2], usuario, I, J: Entero;
+
+  init_luchadores(Luchadores[i].id, Luchadores[i].nombre, Luchadores[i].ataque, Luchadores[i].defensa, Luchadores[i].velocidad, Luchadores[i].vida);
+
+  Mientras (continuar = 1) Hacer;
+    Mostrar << "Bienvenido seas al torneo. Quieres crear un personaje o seleccionar uno? (0: crear, 1: seleccionar)";
+    Leer >> opcion;
+
+    Si (opcion = 0) Entonces;
+      crear_personaje(Luchadores[i].nombre, Luchadores[i].vida, Luchadores[i].ataque, Luchadores[i].defensa, Luchadores[i].velocidad);
+      Mostrar << crear_personaje;
+
+      Sino
+        seleccionar_personaje(Luchadores[i].nombre, usuario);
+    Fin_Si
+
+    torneo(opcion, I, J, mínimo, máximo, Contrincantes[I], usuario, Luchadores[I].id, Luchadores[I].ataque, Luchadores[I].defensa, Luchadores[I].velocidad, Enfrentamientos[K], Ganador, Luchadores[I].nombre, Etapa_Actual, Ranking_Final[I]);
+
+    Mostrar << "Desea jugar otra vez?";
+    Leer >> continuar;
+  Fin_Mientras
+
+  Resultados(Contrincantes[I], Ganador, Luchadores[I].id, Luchadores[I].ultima_etapa, Luchadores[I].nombre);
+  Mostrar << Resultados;
+Fin
+

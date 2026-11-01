@@ -1,0 +1,202 @@
+Procedimiento init_luchadores(E/S: Luchadores[i].id: Entero, Luchadores[i].nombre: Cadena, Luchadores[i].ataque, Luchadores[i].defensa, Luchadores[i].velocidad, Luchadores[i].vida: Entero);
+Inicio
+  Var i: Entero;
+
+  Luchadores[1].id = 1;
+  Luchadores[1].nombre = "Eminem";
+  Luchadores[1].ataque = 40;
+  Luchadores[1].defensa = 60;
+  Luchadores[1].velocidad = 95;
+
+  Luchadores[2].id = 2;
+  Luchadores[2].nombre = "Pikachu";
+  Luchadores[2].ataque = 70;
+  Luchadores[2].defensa = 50;
+  Luchadores[2].velocidad = 70;
+
+  Luchadores[3].id = 3;
+  Luchadores[3].nombre = "The Punisher";
+  Luchadores[3].ataque = 60;
+  Luchadores[3].defensa = 75;
+  Luchadores[3].velocidad = 65;
+
+  Luchadores[4].id = 4;
+  Luchadores[4].nombre = "Harry Potter";
+  Luchadores[4].ataque = 95;
+  Luchadores[4].defensa = 95;
+  Luchadores[4].velocidad = 80;
+
+  Luchadores[5].id = 5;
+  Luchadores[5].nombre = "Lord Voldemort";
+  Luchadores[5].ataque = 90;
+  Luchadores[5].defensa = 95;
+  Luchadores[5].velocidad = 70;
+
+  Luchadores[6].id = 6;
+  Luchadores[6].nombre = "Popeye";
+  Luchadores[6].ataque = 98;
+  Luchadores[6].defensa = 60;
+  Luchadores[6].velocidad = 90;
+
+  Luchadores[7].id = 7;
+  Luchadores[7].nombre = "Adam Sandler";
+  Luchadores[7].ataque = 75;
+  Luchadores[7].defensa = 80;
+  Luchadores[7].velocidad = 40;
+
+  Luchadores[8].id = 8;
+  Luchadores[8].nombre = "Vegetta777";
+  Luchadores[8].ataque = 80;
+  Luchadores[8].defensa = 70;
+  Luchadores[8].velocidad = 95;
+
+  Luchadores[9].id = 9;
+  Luchadores[9].nombre = "Skywalker";
+  Luchadores[9].ataque = 75;
+  Luchadores[9].defensa = 80;
+  Luchadores[9].velocidad = 50;
+
+  Luchadores[10].id = 10;
+  Luchadores[10].nombre = "Homero";
+  Luchadores[10].ataque = 55;
+  Luchadores[10].defensa = 60;
+  Luchadores[10].velocidad = 50;
+
+  Luchadores[11].id = 11;
+  Luchadores[11].nombre = "Flanders";
+  Luchadores[11].ataque = 45;
+  Luchadores[11].defensa = 80;
+  Luchadores[11].velocidad = 60;
+
+  Luchadores[12].id = 12;
+  Luchadores[12].nombre = "Merlina";
+  Luchadores[12].ataque = 98;
+  Luchadores[12].defensa = 98;
+  Luchadores[12].velocidad = 60;
+
+  Luchadores[13].id = 13;
+  Luchadores[13].nombre = "Jeffrey Dahmer";
+  Luchadores[13].ataque = 95;
+  Luchadores[13].defensa = 55;
+  Luchadores[13].velocidad = 70;
+
+  Luchadores[14].id = 14;
+  Luchadores[14].nombre = "Ed Warren";
+  Luchadores[14].ataque = 80;
+  Luchadores[14].defensa = 60;
+  Luchadores[14].velocidad = 40;
+
+  Luchadores[15].id = 15;
+  Luchadores[15].nombre = "Valak";
+  Luchadores[15].ataque = 90;
+  Luchadores[15].defensa = 70;
+  Luchadores[15].velocidad = 65;
+
+  Luchadores[16].id = 16;
+  Luchadores[16].nombre = "Chayanne";
+  Luchadores[16].ataque = 80;
+  Luchadores[16].defensa = 45;
+  Luchadores[16].velocidad = 50;
+
+  Luchadores[17].id = 17;
+  Luchadores[17].nombre = "Lorraine Warren";
+  Luchadores[17].ataque = 98;
+  Luchadores[17].defensa = 60;
+  Luchadores[17].velocidad = 40;
+
+  Luchadores[18].id = 18;
+  Luchadores[18].nombre = "Phineas";
+  Luchadores[18].ataque = 50;
+  Luchadores[18].defensa = 80;
+  Luchadores[18].velocidad = 70;
+
+  Luchadores[19].id = 19;
+  Luchadores[19].nombre = "Ibai Llanos";
+  Luchadores[19].ataque = 70;
+  Luchadores[19].defensa = 30;
+  Luchadores[19].velocidad = 45;
+
+  Luchadores[20].id = 20;
+  Luchadores[20].nombre = "Westcol";
+  Luchadores[20].ataque = 40;
+  Luchadores[20].defensa = 30;
+  Luchadores[20].velocidad = 70;
+
+  Luchadores[21].id = 21;
+  Luchadores[21].nombre = "Lavinotinto";
+  Luchadores[21].ataque = 40;
+  Luchadores[21].defensa = 50;
+  Luchadores[21].velocidad = 70;
+
+  Luchadores[22].id = 22;
+  Luchadores[22].nombre = "Luisito Comunica";
+  Luchadores[22].ataque = 60;
+  Luchadores[22].defensa = 80;
+  Luchadores[22].velocidad = 65;
+
+  Luchadores[23].id = 23;
+  Luchadores[23].nombre = "Diosdado";
+  Luchadores[23].ataque = 50;
+  Luchadores[23].defensa = 45;
+  Luchadores[23].velocidad = 80;
+
+  Luchadores[24].id = 24;
+  Luchadores[24].nombre = "Marí Cori";
+  Luchadores[24].ataque = 65;
+  Luchadores[24].defensa = 80;
+  Luchadores[24].velocidad = 65;
+
+  Luchadores[25].id = 25;
+  Luchadores[25].nombre = "MADURO";
+  Luchadores[25].ataque = 78;
+  Luchadores[25].defensa = 30;
+  Luchadores[25].velocidad = 75;
+
+  Luchadores[26].id = 26;
+  Luchadores[26].nombre = "Scooby Doo";
+  Luchadores[26].ataque = 90;
+  Luchadores[26].defensa = 65;
+  Luchadores[26].velocidad = 90;
+
+  Luchadores[27].id = 27;
+  Luchadores[27].nombre = "Rick Sanchez";
+  Luchadores[27].ataque = 69;
+  Luchadores[27].defensa = 69;
+  Luchadores[27].velocidad = 69;
+
+  Luchadores[28].id = 28;
+  Luchadores[28].nombre = "Elecentro";
+  Luchadores[28].ataque = 80;
+  Luchadores[28].defensa = 40;
+  Luchadores[28].velocidad = 60;
+
+  Luchadores[29].id = 29;
+  Luchadores[29].nombre = "Goku";
+  Luchadores[29].ataque = 100;
+  Luchadores[29].defensa = 95;
+  Luchadores[29].velocidad = 95;
+
+  Luchadores[30].id = 30;
+  Luchadores[30].nombre = "Luffy";
+  Luchadores[30].ataque = 80;
+  Luchadores[30].defensa = 80;
+  Luchadores[30].velocidad = 85;
+
+  Luchadores[31].id = 31;
+  Luchadores[31].nombre = "Kratos";
+  Luchadores[31].ataque = 75;
+  Luchadores[31].defensa = 70;
+  Luchadores[31].velocidad = 70;
+
+  Luchadores[32].id = 32;
+  Luchadores[32].nombre = "";
+  Luchadores[32].ataque = 0;
+  Luchadores[32].defensa = 0;
+  Luchadores[32].velocidad = 0;
+
+  Para (i = 1 Hasta i = 32) Hacer;
+    Luchadores[i].vida = 100;
+    Luchadores[i].victorias = 0;
+    Luchadores[i].derrotas = 0;
+  Fin_Para
+Fin_Procedimiento
