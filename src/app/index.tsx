@@ -43,7 +43,7 @@ export default function EditorScreen() {
 
   // Output panel & interactive execution state
   const [logs, setLogs] = useState<string[]>([]);
-  const [isOutputExpanded, setIsOutputExpanded] = useState(false);
+  const [isTerminalVisible, setIsTerminalVisible] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [waitingForInput, setWaitingForInput] = useState<{ typeName: string; line: number } | null>(null);
   const runnerRef = useRef<InteractiveGaboRunner | null>(null);
@@ -74,7 +74,7 @@ export default function EditorScreen() {
 
     const cleanTitle = activeFile.name.replace(/\.(gabo|txt)$/i, '');
     setIsRunning(true);
-    setIsOutputExpanded(true);
+    setIsTerminalVisible(true);
     setWaitingForInput(null);
     setLogs([`▷ Ejecutando ${cleanTitle}…\n`]);
 
@@ -511,24 +511,27 @@ export default function EditorScreen() {
           />
         </View>
 
-        {/* Terminal interactiva de ejecución */}
-        <OutputPanel
-          logs={logs}
-          isExpanded={isOutputExpanded}
-          onToggleExpand={() => setIsOutputExpanded((prev) => !prev)}
-          onClear={() => setLogs([])}
-          isRunning={isRunning}
-          onStop={handleStopCode}
-          waitingForInput={waitingForInput}
-          onSubmitInput={handleSubmitInput}
-        />
-
         {/* Barra de atajos y símbolos encima del teclado en orden estricto */}
         <AccessoryBar
           onInsertText={handleInsertSnippet}
           onInsertTab={handleInsertTab}
         />
       </KeyboardAvoidingView>
+
+      {/* Terminal interactiva de ejecución independiente a pantalla completa */}
+      <OutputPanel
+        visible={isTerminalVisible}
+        onClose={() => {
+          handleStopCode();
+          setIsTerminalVisible(false);
+        }}
+        logs={logs}
+        onClear={() => setLogs([])}
+        isRunning={isRunning}
+        waitingForInput={waitingForInput}
+        onSubmitInput={handleSubmitInput}
+        fileName={activeFile.name}
+      />
     </View>
   );
 }

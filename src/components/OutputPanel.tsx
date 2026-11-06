@@ -1,6 +1,8 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import {
+  KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -9,53 +11,61 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/ThemeContext';
 
 interface OutputPanelProps {
+  visible: boolean;
+  onClose: () => void;
   logs: string[];
-  isExpanded: boolean;
-  onToggleExpand: () => void;
   onClear: () => void;
   isRunning?: boolean;
-  onStop?: () => void;
   waitingForInput?: { typeName: string; line: number } | null;
   onSubmitInput?: (value: string) => void;
+  algorithmName?: string;
+  fileName?: string;
 }
 
 export default function OutputPanel({
+  visible,
+  onClose,
   logs,
-  isExpanded,
-  onToggleExpand,
   onClear,
   isRunning = false,
-  onStop,
   waitingForInput = null,
   onSubmitInput,
+  algorithmName,
+  fileName,
 }: OutputPanelProps) {
   const { theme } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<any>(null);
   const inputRef = useRef<any>(null);
 
   const [inputText, setInputText] = useState('');
-  const [panelHeightMode, setPanelHeightMode] = useState<'normal' | 'tall'>('normal');
 
-  // Auto-scroll al final cada vez que cambian los logs
+  const displayName = fileName || algorithmName || 'Terminal';
+  const topInset = Platform.OS === 'ios' ? insets.top : 0;
+
+  // Auto-scroll al final cada vez que se agregan líneas a los logs o se solicita entrada
   useEffect(() => {
-    if (isExpanded) {
-      setTimeout(() => {
+    if (visible) {
+      const timer = setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 50);
+      return () => clearTimeout(timer);
     }
-  }, [logs, isExpanded, waitingForInput]);
+  }, [logs, visible, waitingForInput]);
 
-  // Enfocar automáticamente el input cuando el programa pide entrada
+  // Enfocar automáticamente el campo de entrada cuando el algoritmo solicita Leer >>
   useEffect(() => {
-    if (waitingForInput && isExpanded) {
-      setTimeout(() => {
+    if (waitingForInput && visible) {
+      const timer = setTimeout(() => {
         inputRef.current?.focus();
       }, 100);
+      return () => clearTimeout(timer);
     }
-  }, [waitingForInput, isExpanded]);
+  }, [waitingForInput, visible]);
 
   const handleSend = () => {
     if (!onSubmitInput) return;
@@ -64,388 +74,281 @@ export default function OutputPanel({
     onSubmitInput(value);
   };
 
-  const toggleHeightMode = () => {
-    setPanelHeightMode((prev) => (prev === 'normal' ? 'tall' : 'normal'));
-  };
-
-  if (!isExpanded) {
-    return (
-      <TouchableOpacity
-        activeOpacity={0.8}
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="fullScreen"
+      onRequestClose={onClose}
+    >
+      <View
         style={[
-          styles.collapsedBar,
+          styles.fullScreen,
           {
-            backgroundColor: theme.superficie,
-            borderTopColor: theme.borde,
+            backgroundColor: theme.fondo,
+            paddingBottom: insets.bottom,
+            paddingLeft: insets.left,
+            paddingRight: insets.right,
           },
         ]}
-        onPress={onToggleExpand}
       >
-        <View style={styles.headerLeft}>
-          <MaterialCommunityIcons
-            name="console"
-            size={18}
-            color={theme.acento}
-          />
-          <Text style={[styles.title, { color: theme.texto }]}>
-            Terminal {logs.length > 0 ? `(${logs.length})` : ''}
-          </Text>
-        </View>
-
-        <View style={styles.headerRight}>
-          {isRunning ? (
-            <View style={styles.runningBadge}>
-              <View style={[styles.runningDot, { backgroundColor: theme.acento }]} />
-              <Text style={[styles.statusText, { color: theme.acento }]}>
-                {waitingForInput ? `Esperando entrada (${waitingForInput.typeName})...` : 'Ejecutando...'}
+        <KeyboardAvoidingView
+          style={styles.keyboardContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          {/* Cabecera de la Terminal: Directamente en la parte superior sin barras ni espacios vacíos */}
+          <View
+            style={[
+              styles.header,
+              {
+                backgroundColor: theme.superficie,
+                borderBottomColor: theme.borde,
+                paddingTop: topInset,
+                height: 52 + topInset,
+              },
+            ]}
+          >
+            {/* Lado Izquierdo: Muestra únicamente el nombre del archivo */}
+            <View style={styles.headerLeft}>
+              <Text
+                style={[styles.headerTitle, { color: theme.texto }]}
+                numberOfLines={1}
+              >
+                {displayName}
               </Text>
             </View>
-          ) : logs.length > 0 ? (
+
+            {/* Lado Derecho (Iconos sin texto): Basura a la izquierda, X en el extremo derecho */}
+            <View style={styles.headerRight}>
+              {/* Icono de Basura: para vaciar la consola */}
+              <TouchableOpacity
+                style={styles.iconBtn}
+                activeOpacity={0.7}
+                onPress={onClear}
+                hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
+              >
+                <MaterialCommunityIcons
+                  name="trash-can-outline"
+                  size={22}
+                  color={theme.textoSecundario}
+                />
+              </TouchableOpacity>
+
+              {/* Icono de X: para cerrar la terminal */}
+              <TouchableOpacity
+                style={styles.iconBtn}
+                activeOpacity={0.7}
+                onPress={onClose}
+                hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
+              >
+                <MaterialCommunityIcons
+                  name="close"
+                  size={24}
+                  color={theme.texto}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Consola Interactiva: Salida de datos a pantalla completa */}
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.logScroll}
+            contentContainerStyle={styles.logContent}
+            showsVerticalScrollIndicator
+            keyboardShouldPersistTaps="handled"
+          >
+            {logs.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={[styles.emptySubtitle, { color: theme.textoSecundario }]}>
+                  Consola vacía.
+                </Text>
+              </View>
+            ) : (
+              logs.map((log, index) => {
+                const isSuccess = log.includes('✓') || log.includes('finalizado correctamente');
+                const isError = log.includes('✗') || log.includes('Error');
+                const isUserInput = log.startsWith('>');
+                const isNotice = log.includes('▷') || log.includes('■') || log.includes('Aviso');
+
+                let textColor = theme.texto;
+                if (isSuccess) textColor = theme.exito;
+                else if (isError) textColor = theme.error;
+                else if (isUserInput) textColor = theme.acento;
+                else if (isNotice) textColor = theme.syntax.number;
+
+                return (
+                  <Text
+                    key={`log-${index}`}
+                    style={[
+                      styles.logLine,
+                      {
+                        color: textColor,
+                        fontWeight: isUserInput || isSuccess || isError ? '600' : '400',
+                        fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+                      },
+                    ]}
+                  >
+                    {log}
+                  </Text>
+                );
+              })
+            )}
+          </ScrollView>
+
+          {/* Consola Interactiva: Entrada de datos por teclado durante lecturas (Leer >>) */}
+          <View
+            style={[
+              styles.inputContainer,
+              {
+                backgroundColor: theme.superficie,
+                borderTopColor: waitingForInput ? theme.acento : theme.borde,
+                borderTopWidth: waitingForInput ? 2 : StyleSheet.hairlineWidth,
+              },
+            ]}
+          >
             <Text
               style={[
-                styles.statusText,
+                styles.promptPrefix,
+                { color: waitingForInput ? theme.acento : theme.textoSecundario },
+              ]}
+            >
+              {waitingForInput ? `Leer (${waitingForInput.typeName}):` : '>'}
+            </Text>
+            <TextInput
+              ref={inputRef}
+              style={[
+                styles.terminalInput,
                 {
-                  color: logs[logs.length - 1].includes('Error') || logs[logs.length - 1].includes('✗')
-                    ? theme.error
-                    : theme.exito,
+                  color: theme.texto,
+                  fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
                 },
               ]}
-              numberOfLines={1}
-            >
-              {logs[logs.length - 1].trim()}
-            </Text>
-          ) : null}
-          <MaterialCommunityIcons
-            name="chevron-up"
-            size={20}
-            color={theme.textoSecundario}
-          />
-        </View>
-      </TouchableOpacity>
-    );
-  }
-
-  const containerHeight = panelHeightMode === 'normal' ? 220 : 340;
-
-  return (
-    <View
-      style={[
-        styles.expandedContainer,
-        {
-          height: containerHeight,
-          backgroundColor: theme.fondo,
-          borderTopColor: theme.borde,
-        },
-      ]}
-    >
-      {/* Barra superior de la terminal */}
-      <View
-        style={[
-          styles.header,
-          {
-            backgroundColor: theme.superficie,
-            borderBottomColor: theme.borde,
-          },
-        ]}
-      >
-        <View style={styles.headerLeft}>
-          <TouchableOpacity
-            style={styles.headerTitleRow}
-            activeOpacity={0.7}
-            onPress={onToggleExpand}
-          >
-            <MaterialCommunityIcons
-              name="console"
-              size={18}
-              color={theme.acento}
+              value={inputText}
+              onChangeText={setInputText}
+              placeholder={
+                waitingForInput
+                  ? `Ingresa ${waitingForInput.typeName} y presiona Enviar`
+                  : isRunning
+                  ? 'Ejecutando programa...'
+                  : 'Programa inactivo'
+              }
+              placeholderTextColor={theme.textoSecundario}
+              returnKeyType="send"
+              onSubmitEditing={handleSend}
+              editable={isRunning}
+              autoCapitalize="none"
+              autoCorrect={false}
             />
-            <Text style={[styles.title, { color: theme.texto }]}>Terminal Interactiva</Text>
-            <MaterialCommunityIcons
-              name="chevron-down"
-              size={18}
-              color={theme.textoSecundario}
-            />
-          </TouchableOpacity>
-
-          {isRunning && (
-            <View style={[styles.statusIndicator, { backgroundColor: theme.lineaActiva }]}>
-              <Text style={[styles.statusBadgeText, { color: theme.acento }]}>
-                {waitingForInput ? `Leer (${waitingForInput.typeName})` : 'En ejecución'}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.actions}>
-          {/* Botón Detener si está ejecutando */}
-          {isRunning && onStop && (
             <TouchableOpacity
-              onPress={onStop}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={[styles.stopBtn, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}
-            >
-              <MaterialCommunityIcons name="stop" size={16} color={theme.error} />
-              <Text style={[styles.stopBtnText, { color: theme.error }]}>Detener</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Toggle de altura (split view / maximizar) */}
-          <TouchableOpacity
-            onPress={toggleHeightMode}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            style={styles.actionBtn}
-          >
-            <MaterialCommunityIcons
-              name={panelHeightMode === 'normal' ? 'arrow-expand' : 'arrow-collapse'}
-              size={16}
-              color={theme.textoSecundario}
-            />
-          </TouchableOpacity>
-
-          {/* Limpiar terminal */}
-          {logs.length > 0 && (
-            <TouchableOpacity
-              onPress={onClear}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={styles.actionBtn}
+              onPress={handleSend}
+              disabled={!isRunning || !inputText.trim()}
+              style={[
+                styles.sendButton,
+                {
+                  backgroundColor:
+                    isRunning && inputText.trim() ? theme.acento : theme.lineaActiva,
+                  opacity: isRunning && inputText.trim() ? 1 : 0.4,
+                },
+              ]}
             >
               <MaterialCommunityIcons
-                name="trash-can-outline"
-                size={16}
-                color={theme.textoSecundario}
+                name="send"
+                size={15}
+                color={
+                  isRunning && inputText.trim()
+                    ? theme.textoSobreAcento
+                    : theme.textoSecundario
+                }
               />
             </TouchableOpacity>
-          )}
-        </View>
+          </View>
+        </KeyboardAvoidingView>
       </View>
-
-      {/* Salida de texto / logs */}
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.logScroll}
-        contentContainerStyle={styles.logContent}
-        showsVerticalScrollIndicator
-        keyboardShouldPersistTaps="always"
-      >
-        {logs.length === 0 ? (
-          <Text style={[styles.emptyText, { color: theme.textoSecundario }]}>
-            Presiona el botón de ejecutar (▶) para ver la salida e interactuar con el algoritmo.
-          </Text>
-        ) : (
-          logs.map((log, index) => {
-            const isSuccess = log.includes('✓') || log.includes('finalizado correctamente');
-            const isError = log.includes('✗') || log.includes('Error');
-            const isUserInput = log.startsWith('>');
-            const isNotice = log.includes('▷') || log.includes('■') || log.includes('Aviso');
-
-            let textColor = theme.texto;
-            if (isSuccess) textColor = theme.exito;
-            else if (isError) textColor = theme.error;
-            else if (isUserInput) textColor = theme.acento;
-            else if (isNotice) textColor = theme.syntax.number;
-
-            return (
-              <Text
-                key={`log-${index}`}
-                style={[
-                  styles.logLine,
-                  {
-                    color: textColor,
-                    fontWeight: isUserInput || isSuccess || isError ? '600' : '400',
-                    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-                  },
-                ]}
-              >
-                {log}
-              </Text>
-            );
-          })
-        )}
-      </ScrollView>
-
-      {/* Barra de Entrada Interactiva (para Leer >>) */}
-      <View
-        style={[
-          styles.inputContainer,
-          {
-            backgroundColor: theme.superficie,
-            borderTopColor: waitingForInput ? theme.acento : theme.borde,
-            borderTopWidth: waitingForInput ? 1.5 : StyleSheet.hairlineWidth,
-          },
-        ]}
-      >
-        <Text style={[styles.promptPrefix, { color: waitingForInput ? theme.acento : theme.textoSecundario }]}>
-          {waitingForInput ? `Leer (${waitingForInput.typeName}):` : '>'}
-        </Text>
-        <TextInput
-          ref={inputRef}
-          style={[
-            styles.terminalInput,
-            {
-              color: theme.texto,
-              fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-            },
-          ]}
-          value={inputText}
-          onChangeText={setInputText}
-          placeholder={
-            waitingForInput
-              ? `Ingresa ${waitingForInput.typeName} y presiona Enviar`
-              : isRunning
-              ? 'Ejecutando...'
-              : 'La terminal aceptará entradas durante la ejecución'
-          }
-          placeholderTextColor={theme.textoSecundario}
-          returnKeyType="send"
-          onSubmitEditing={handleSend}
-          editable={isRunning}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        <TouchableOpacity
-          onPress={handleSend}
-          disabled={!isRunning}
-          style={[
-            styles.sendButton,
-            {
-              backgroundColor: isRunning ? theme.acento : theme.superficieSecundaria,
-              opacity: isRunning ? 1 : 0.4,
-            },
-          ]}
-        >
-          <MaterialCommunityIcons
-            name="send"
-            size={14}
-            color={isRunning ? theme.textoSobreAcento : theme.textoSecundario}
-          />
-        </TouchableOpacity>
-      </View>
-    </View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  collapsedBar: {
-    height: 40,
-    borderTopWidth: StyleSheet.hairlineWidth,
+  fullScreen: {
+    flex: 1,
+  },
+  keyboardContainer: {
+    flex: 1,
+  },
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-  },
-  expandedContainer: {
-    borderTopWidth: 1,
-    flexDirection: 'column',
-  },
-  header: {
-    height: 38,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    flex: 1,
+    justifyContent: 'center',
+    marginRight: 12,
   },
-  headerTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
   },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    flexShrink: 1,
   },
-  title: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  statusIndicator: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  statusBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  runningBadge: {
-    flexDirection: 'row',
+  iconBtn: {
+    width: 38,
+    height: 38,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 6,
-  },
-  runningDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  actionBtn: {
-    padding: 4,
-  },
-  stopBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 5,
-  },
-  stopBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
+    borderRadius: 8,
   },
   logScroll: {
     flex: 1,
   },
   logContent: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 3,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexGrow: 1,
+    gap: 4,
   },
   logLine: {
-    fontSize: 12.5,
-    lineHeight: 18,
+    fontSize: 13,
+    lineHeight: 20,
   },
-  emptyText: {
-    fontSize: 12.5,
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  emptySubtitle: {
+    fontSize: 13,
     fontStyle: 'italic',
   },
   inputContainer: {
-    height: 38,
+    height: 48,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    gap: 8,
+    paddingHorizontal: 12,
+    gap: 10,
   },
   promptPrefix: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
   },
   terminalInput: {
     flex: 1,
-    fontSize: 12.5,
+    fontSize: 13.5,
     paddingVertical: 0,
-    paddingHorizontal: 4,
-    height: 32,
+    paddingHorizontal: 6,
+    height: 36,
   },
   sendButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
+    width: 34,
+    height: 34,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
