@@ -260,15 +260,22 @@ export default function ExplorerScreen() {
   };
 
   const handleRenameSubmit = async () => {
-    if (!renameTargetName.trim()) return;
-    if (selectedFile) {
-      await renameFile(selectedFile.id, renameTargetName.trim());
-    } else if (selectedFolder) {
-      await renameFolder(selectedFolder.id, renameTargetName.trim());
+    const trimmed = renameTargetName.trim();
+    if (!trimmed) return;
+    try {
+      setShowRenameModal(false);
+      if (selectedFile) {
+        await renameFile(selectedFile.id, trimmed);
+      } else if (selectedFolder) {
+        await renameFolder(selectedFolder.id, trimmed);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al renombrar';
+      Alert.alert('Error', msg);
+    } finally {
+      setSelectedFile(null);
+      setSelectedFolder(null);
     }
-    setShowRenameModal(false);
-    setSelectedFile(null);
-    setSelectedFolder(null);
   };
 
   const handleDeleteFile = (file: GaboFile) => {

@@ -347,6 +347,73 @@ async function scanPhysicalWorkspace(
   return { files: [], folders: [] };
 }
 
+async function migrateSafDirectoryContents(
+  oldDirUri: string,
+  newDirUri: string,
+  folderId: string,
+  allFiles: GaboFile[],
+  allFolders: GaboFolder[]
+): Promise<{ updatedFiles: Map<string, string>; updatedFolders: Map<string, string> }> {
+  const updatedFiles = new Map<string, string>();
+  const updatedFolders = new Map<string, string>();
+
+  // 1. Migrar archivos contenidos en esta carpeta
+  const childFiles = allFiles.filter((f) => f.folderId === folderId);
+  for (const file of childFiles) {
+    try {
+      const baseName = file.name.replace(/\.gabo$/, '');
+      const newFileUri = await FileSystem.StorageAccessFramework.createFileAsync(
+        newDirUri,
+        baseName,
+        'text/plain'
+      );
+      if (newFileUri) {
+        let contentToSave = file.content;
+        if (!contentToSave && file.safUri) {
+          try {
+            contentToSave = await FileSystem.readAsStringAsync(file.safUri);
+          } catch {
+            // ignore
+          }
+        }
+        await FileSystem.StorageAccessFramework.writeAsStringAsync(newFileUri, contentToSave || '');
+        updatedFiles.set(file.id, newFileUri);
+      }
+    } catch (err) {
+      console.warn('Error migrando archivo en carpeta renombrada:', file.name, err);
+    }
+  }
+
+  // 2. Migrar subcarpetas recursivamente
+  const childFolders = allFolders.filter((f) => f.folderId === folderId);
+  for (const subFolder of childFolders) {
+    try {
+      const newSubDirUri = await FileSystem.StorageAccessFramework.makeDirectoryAsync(
+        newDirUri,
+        subFolder.name
+      );
+      if (newSubDirUri) {
+        updatedFolders.set(subFolder.id, newSubDirUri);
+        if (subFolder.safUri) {
+          const subResult = await migrateSafDirectoryContents(
+            subFolder.safUri,
+            newSubDirUri,
+            subFolder.id,
+            allFiles,
+            allFolders
+          );
+          subResult.updatedFiles.forEach((v, k) => updatedFiles.set(k, v));
+          subResult.updatedFolders.forEach((v, k) => updatedFolders.set(k, v));
+        }
+      }
+    } catch (err) {
+      console.warn('Error migrando subcarpeta en carpeta renombrada:', subFolder.name, err);
+    }
+  }
+
+  return { updatedFiles, updatedFolders };
+}
+
 /**
  * Calcula un nombre único incremental para evitar colisiones:
  * nombre.gabo -> nombre (1).gabo -> nombre (2).gabo
@@ -914,15 +981,120 @@ export function FileProvider({ children }: { children: React.ReactNode }) {
     [createFile, files]
   );
 
-  const renameFolder = useCallback(async (id: string, newName: string) => {
-    setFolders((prev) => {
-      const next = prev.map((f) =>
-        f.id === id ? { ...f, name: newName.trim(), updatedAt: Date.now() } : f
-      );
-      saveAllFolders(next);
-      return next;
-    });
-  }, []);
+  const renameFolder = useCallback(
+    async (id: string, newName: string) => {
+      const target = folders.find((f) => f.id === id);
+      if (!target) return;
+
+      const trimmedName = newName.trim();
+      if (!trimmedName || trimmedName === target.name) return;
+
+      let updatedSafUri = target.safUri;
+      let fileUriUpdates = new Map<string, string>();
+      let folderUriUpdates = new Map<string, string>();
+
+      if (target.safUri) {
+        if (Platform.OS === 'android' && target.safUri.startsWith('content://')) {
+          try {
+            const parentFolder = target.folderId ? folders.find((f) => f.id === target.folderId) : null;
+            const targetParentUri = parentFolder?.safUri || workspaceUri;
+
+            if (targetParentUri) {
+              // 1. Crear nuevo directorio físico con el nuevo nombre
+              const newDirSafUri = await FileSystem.StorageAccessFramework.makeDirectoryAsync(
+                targetParentUri,
+                trimmedName
+              );
+
+              if (newDirSafUri) {
+                // 2. Migrar contenidos físicos (archivos y subcarpetas)
+                const migration = await migrateSafDirectoryContents(
+                  target.safUri,
+                  newDirSafUri,
+                  target.id,
+                  files,
+                  folders
+                );
+                fileUriUpdates = migration.updatedFiles;
+                folderUriUpdates = migration.updatedFolders;
+
+                // 3. Eliminar directorio anterior
+                try {
+                  await FileSystem.StorageAccessFramework.deleteAsync(target.safUri);
+                } catch (delErr) {
+                  console.warn('Error eliminando directorio anterior en SAF:', delErr);
+                }
+
+                updatedSafUri = newDirSafUri;
+              }
+            }
+          } catch (e) {
+            console.warn('Error renombrando carpeta en SAF:', e);
+          }
+        } else if (target.safUri.startsWith('file://')) {
+          try {
+            const cleanTarget = target.safUri.replace(/\/+$/, '');
+            const parentDir = cleanTarget.substring(0, cleanTarget.lastIndexOf('/') + 1);
+            const newPath = `${parentDir}${trimmedName}/`;
+            await FileSystem.moveAsync({ from: target.safUri, to: newPath });
+            updatedSafUri = newPath;
+
+            // Para archivos locales, actualizar todas las URIs hijas que comiencen por la ruta antigua
+            const oldPrefix = target.safUri.endsWith('/') ? target.safUri : `${target.safUri}/`;
+            files.forEach((f) => {
+              if (f.safUri && f.safUri.startsWith(oldPrefix)) {
+                fileUriUpdates.set(f.id, f.safUri.replace(oldPrefix, newPath));
+              }
+            });
+            folders.forEach((f) => {
+              if (f.id !== id && f.safUri && f.safUri.startsWith(oldPrefix)) {
+                folderUriUpdates.set(f.id, f.safUri.replace(oldPrefix, newPath));
+              }
+            });
+          } catch (e) {
+            console.warn('Error renombrando carpeta local:', e);
+          }
+        }
+      }
+
+      // Actualizar estado de React y AsyncStorage
+      const nextFolders = folders.map((f) => {
+        if (f.id === id) {
+          return { ...f, name: trimmedName, safUri: updatedSafUri, updatedAt: Date.now() };
+        }
+        if (folderUriUpdates.has(f.id)) {
+          return { ...f, safUri: folderUriUpdates.get(f.id), updatedAt: Date.now() };
+        }
+        return f;
+      });
+
+      const nextFiles = files.map((f) => {
+        if (fileUriUpdates.has(f.id)) {
+          return { ...f, safUri: fileUriUpdates.get(f.id), updatedAt: Date.now() };
+        }
+        return f;
+      });
+
+      setFolders(nextFolders);
+      setFiles(nextFiles);
+      await saveAllFolders(nextFolders);
+      await saveAllFiles(nextFiles);
+
+      // Sincronizar en tiempo real con almacenamiento físico para revalidar
+      if (workspaceUri) {
+        const { files: verifiedFiles, folders: verifiedFolders } = await scanPhysicalWorkspace(
+          workspaceUri,
+          nextFiles,
+          nextFolders
+        );
+        setFiles(verifiedFiles);
+        setFolders(verifiedFolders);
+        await saveAllFiles(verifiedFiles);
+        await saveAllFolders(verifiedFolders);
+      }
+    },
+    [folders, files, workspaceUri]
+  );
 
   const deleteFolder = useCallback(
     async (id: string) => {
