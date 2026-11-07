@@ -81,7 +81,7 @@ export default function OutputPanel({
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="fullScreen"
+      transparent={true}
       statusBarTranslucent={true}
       onRequestClose={onClose}
     >
