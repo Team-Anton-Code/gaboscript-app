@@ -149,6 +149,23 @@ export class InteractiveGaboRunner {
       res(null);
     }
   }
+
+  /**
+   * Desconecta todos los callbacks para evitar que un runner anterior
+   * interfiera con una nueva ejecución al reiniciar.
+   */
+  public detach() {
+    this.stopped = true;
+    this.onOutputCallback = () => {};
+    this.onInputRequestCallback = () => {};
+    this.onInputDoneCallback = () => {};
+    this.onFinishedCallback = () => {};
+    if (this.currentInputResolver) {
+      const res = this.currentInputResolver;
+      this.currentInputResolver = null;
+      res(null);
+    }
+  }
 }
 
 /**

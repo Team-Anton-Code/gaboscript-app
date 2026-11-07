@@ -62,12 +62,13 @@ export default function EditorScreen() {
     };
   }, []);
 
-  // Ejecución interactiva de GaboScript
+  // Ejecución interactiva de GaboScript (siempre re-ejecuta desde cero)
   const handleRunCode = useCallback(() => {
     if (!activeFile) return;
 
-    // Si ya había una ejecución previa, detenerla
+    // Desconectar y detener runner previo para que nunca pause ni interfiera
     if (runnerRef.current) {
+      runnerRef.current.detach();
       runnerRef.current.stop();
       runnerRef.current = null;
     }
@@ -527,6 +528,7 @@ export default function EditorScreen() {
         }}
         logs={logs}
         onClear={() => setLogs([])}
+        onRestart={handleRunCode}
         isRunning={isRunning}
         waitingForInput={waitingForInput}
         onSubmitInput={handleSubmitInput}

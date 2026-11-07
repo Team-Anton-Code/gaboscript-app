@@ -1,15 +1,16 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import {
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/ThemeContext';
@@ -19,6 +20,7 @@ interface OutputPanelProps {
   onClose: () => void;
   logs: string[];
   onClear: () => void;
+  onRestart: () => void;
   isRunning?: boolean;
   waitingForInput?: { typeName: string; line: number } | null;
   onSubmitInput?: (value: string) => void;
@@ -31,13 +33,14 @@ export default function OutputPanel({
   onClose,
   logs,
   onClear,
+  onRestart,
   isRunning = false,
   waitingForInput = null,
   onSubmitInput,
   algorithmName,
   fileName,
 }: OutputPanelProps) {
-  const { theme } = useAppTheme();
+  const { theme, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<any>(null);
   const inputRef = useRef<any>(null);
@@ -45,7 +48,7 @@ export default function OutputPanel({
   const [inputText, setInputText] = useState('');
 
   const displayName = fileName || algorithmName || 'Terminal';
-  const topInset = Platform.OS === 'ios' ? insets.top : 0;
+  const topInset = Math.max(insets.top, Platform.OS === 'android' ? 24 : 0);
 
   // Auto-scroll al final cada vez que se agregan líneas a los logs o se solicita entrada
   useEffect(() => {
@@ -79,8 +82,10 @@ export default function OutputPanel({
       visible={visible}
       animationType="slide"
       presentationStyle="fullScreen"
+      statusBarTranslucent={true}
       onRequestClose={onClose}
     >
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <View
         style={[
           styles.fullScreen,
@@ -96,7 +101,7 @@ export default function OutputPanel({
           style={styles.keyboardContainer}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          {/* Cabecera de la Terminal: Directamente en la parte superior sin barras ni espacios vacíos */}
+          {/* Cabecera de la Terminal: Fondo uniforme sólido de la cabecera sin franja ni sombra negra */}
           <View
             style={[
               styles.header,
@@ -118,17 +123,17 @@ export default function OutputPanel({
               </Text>
             </View>
 
-            {/* Lado Derecho (Iconos sin texto): Basura a la izquierda, X en el extremo derecho */}
+            {/* Lado Derecho (Iconos sin texto): Refrescar a la izquierda, X en el extremo derecho */}
             <View style={styles.headerRight}>
-              {/* Icono de Basura: para vaciar la consola */}
+              {/* Icono de Refrescar / Actualizar: Siempre re-ejecuta el algoritmo desde cero */}
               <TouchableOpacity
                 style={styles.iconBtn}
                 activeOpacity={0.7}
-                onPress={onClear}
+                onPress={onRestart}
                 hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
               >
                 <MaterialCommunityIcons
-                  name="trash-can-outline"
+                  name="refresh"
                   size={22}
                   color={theme.textoSecundario}
                 />
@@ -196,7 +201,7 @@ export default function OutputPanel({
             )}
           </ScrollView>
 
-          {/* Consola Interactiva: Entrada de datos por teclado durante lecturas (Leer >>) */}
+          {/* Consola Interactiva: Entrada de datos por teclado limpia sin Leer ni Mostrar */}
           <View
             style={[
               styles.inputContainer,
@@ -207,14 +212,6 @@ export default function OutputPanel({
               },
             ]}
           >
-            <Text
-              style={[
-                styles.promptPrefix,
-                { color: waitingForInput ? theme.acento : theme.textoSecundario },
-              ]}
-            >
-              {waitingForInput ? `Leer (${waitingForInput.typeName}):` : '>'}
-            </Text>
             <TextInput
               ref={inputRef}
               style={[
@@ -333,10 +330,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     gap: 10,
-  },
-  promptPrefix: {
-    fontSize: 13,
-    fontWeight: '700',
   },
   terminalInput: {
     flex: 1,
