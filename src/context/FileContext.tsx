@@ -1,15 +1,15 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
-import { Platform, Alert, AppState, AppStateStatus } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, AppState, AppStateStatus, Platform } from 'react-native';
 import {
-  GaboFile,
-  GaboFolder,
-  initializeStorage,
-  saveAllFiles,
-  saveAllFolders,
-  saveActiveFileId,
-  saveOpenTabs,
-  saveWorkspace,
+    GaboFile,
+    GaboFolder,
+    initializeStorage,
+    saveActiveFileId,
+    saveAllFiles,
+    saveAllFolders,
+    saveOpenTabs,
+    saveWorkspace,
 } from '../services/storage';
 
 interface FileContextValue {
@@ -21,6 +21,7 @@ interface FileContextValue {
   currentFolderId: string | null;
   workspaceUri: string | null;
   workspaceName: string | null;
+  isLoading: boolean;
   setCurrentFolderId: (folderId: string | null) => void;
   setActiveFileId: (id: string) => void;
   openFile: (id: string) => void;
@@ -38,6 +39,7 @@ interface FileContextValue {
   clearWorkspace: () => Promise<void>;
   navigateUp: () => void;
   verifyWorkspaceExists: () => Promise<boolean>;
+  syncPhysicalFiles: (targetUri?: string | null) => Promise<void>;
 }
 
 const FileContext = createContext<FileContextValue | null>(null);
@@ -51,6 +53,298 @@ function extractFolderName(uri: string): string {
   } catch {
     return 'Carpeta de trabajo';
   }
+}
+
+function getNameFromSafUri(safUri: string): string {
+  try {
+    const clean = safUri.replace(/(\/|%2F)+$/i, '');
+    const decoded = decodeURIComponent(clean);
+    const slashParts = decoded.split('/');
+    let lastPart = slashParts[slashParts.length - 1] || '';
+    if (lastPart.includes(':')) {
+      const colonParts = lastPart.split(':');
+      lastPart = colonParts[colonParts.length - 1] || lastPart;
+    }
+    return lastPart.trim() || 'carpeta';
+  } catch {
+    return 'carpeta';
+  }
+}
+
+function normalizeGaboFileName(name: string): string {
+  let clean = name.trim();
+  if (clean.endsWith('.gabo.txt')) {
+    clean = clean.replace(/\.gabo\.txt$/i, '.gabo');
+  } else if (clean.endsWith('.txt')) {
+    clean = clean.replace(/\.txt$/i, '.gabo');
+  } else if (!clean.endsWith('.gabo')) {
+    clean = `${clean}.gabo`;
+  }
+  return clean;
+}
+
+function generateFolderId(name: string, parentFolderId: string | null): string {
+  const safeName = name.trim().toLowerCase().replace(/[^a-zA-Z0-9_-]/g, '_');
+  const parentPrefix = parentFolderId ? `${parentFolderId}_` : 'root_';
+  return `folder_${parentPrefix}${safeName}`;
+}
+
+function generateFileId(name: string, parentFolderId: string | null): string {
+  const safeName = name.trim().toLowerCase().replace(/[^a-zA-Z0-9_-]/g, '_');
+  const parentPrefix = parentFolderId ? `${parentFolderId}_` : 'root_';
+  return `file_${parentPrefix}${safeName}`;
+}
+
+function matchExistingFolder(
+  prevFolders: GaboFolder[],
+  uri: string,
+  name: string,
+  parentFolderId: string | null
+): GaboFolder | undefined {
+  const cleanUri = uri.replace(/(\/|%2F)+$/i, '');
+  const cleanName = name.trim().toLowerCase();
+
+  return prevFolders.find((f) => {
+    if (f.safUri && f.safUri.replace(/(\/|%2F)+$/i, '') === cleanUri) {
+      return true;
+    }
+    if (f.folderId === parentFolderId && f.name.trim().toLowerCase() === cleanName) {
+      return true;
+    }
+    return false;
+  });
+}
+
+function matchExistingFile(
+  prevFiles: GaboFile[],
+  uri: string,
+  name: string,
+  parentFolderId: string | null
+): GaboFile | undefined {
+  const cleanUri = uri.replace(/(\/|%2F)+$/i, '');
+  const cleanName = normalizeGaboFileName(name).toLowerCase();
+
+  return prevFiles.find((f) => {
+    if (f.safUri && f.safUri.replace(/(\/|%2F)+$/i, '') === cleanUri) {
+      return true;
+    }
+    if (f.folderId === parentFolderId && normalizeGaboFileName(f.name).toLowerCase() === cleanName) {
+      return true;
+    }
+    return false;
+  });
+}
+
+async function scanSafDirectoryRecursive(
+  dirUri: string,
+  parentFolderId: string | null = null,
+  depth = 0,
+  prevFiles: GaboFile[] = [],
+  prevFolders: GaboFolder[] = []
+): Promise<{ files: GaboFile[]; folders: GaboFolder[] }> {
+  if (depth > 6) return { files: [], folders: [] };
+
+  const foundFiles: GaboFile[] = [];
+  const foundFolders: GaboFolder[] = [];
+
+  try {
+    const childrenUris = await FileSystem.StorageAccessFramework.readDirectoryAsync(dirUri);
+    for (const childUri of childrenUris) {
+      try {
+        const rawName = getNameFromSafUri(childUri);
+        if (rawName.startsWith('.')) continue;
+
+        // Comprobación directa y robusta de directorio en SAF:
+        // readDirectoryAsync tiene éxito si es directorio; lanza error si es archivo.
+        let isDir = false;
+        try {
+          await FileSystem.StorageAccessFramework.readDirectoryAsync(childUri);
+          isDir = true;
+        } catch {
+          isDir = false;
+        }
+
+        if (isDir) {
+          const existingFolder = matchExistingFolder(prevFolders, childUri, rawName, parentFolderId);
+          const folderId = existingFolder?.id || generateFolderId(rawName, parentFolderId);
+
+          const folderObj: GaboFolder = {
+            id: folderId,
+            name: rawName,
+            folderId: parentFolderId,
+            createdAt: existingFolder?.createdAt || Date.now(),
+            updatedAt: Date.now(),
+            safUri: childUri,
+          };
+          foundFolders.push(folderObj);
+
+          // Escaneo recursivo para subcarpetas y sus contenidos
+          const sub = await scanSafDirectoryRecursive(
+            childUri,
+            folderId,
+            depth + 1,
+            prevFiles,
+            prevFolders
+          );
+          foundFiles.push(...sub.files);
+          foundFolders.push(...sub.folders);
+        } else {
+          // Es un archivo físico
+          const finalFileName = normalizeGaboFileName(rawName);
+          const existingFile = matchExistingFile(
+            prevFiles,
+            childUri,
+            finalFileName,
+            parentFolderId
+          );
+
+          let content = existingFile?.content || '';
+          if (!content) {
+            try {
+              content = await FileSystem.readAsStringAsync(childUri);
+            } catch {
+              // ignore
+            }
+          }
+
+          const fileId = existingFile?.id || generateFileId(finalFileName, parentFolderId);
+
+          const fileObj: GaboFile = {
+            id: fileId,
+            name: finalFileName,
+            folderId: parentFolderId,
+            content,
+            createdAt: existingFile?.createdAt || Date.now(),
+            updatedAt: Date.now(),
+            safUri: childUri,
+          };
+          foundFiles.push(fileObj);
+        }
+      } catch (childErr) {
+        console.warn('Error reading SAF child:', childUri, childErr);
+      }
+    }
+  } catch (err) {
+    console.warn('Error scanning SAF directory:', dirUri, err);
+  }
+
+  return { files: foundFiles, folders: foundFolders };
+}
+
+async function scanLocalDirectoryRecursive(
+  dirUri: string,
+  parentFolderId: string | null = null,
+  depth = 0,
+  prevFiles: GaboFile[] = [],
+  prevFolders: GaboFolder[] = []
+): Promise<{ files: GaboFile[]; folders: GaboFolder[] }> {
+  if (depth > 6) return { files: [], folders: [] };
+
+  const foundFiles: GaboFile[] = [];
+  const foundFolders: GaboFolder[] = [];
+
+  try {
+    const cleanDir = dirUri.endsWith('/') ? dirUri : `${dirUri}/`;
+    const entries = await FileSystem.readDirectoryAsync(cleanDir);
+
+    for (const entry of entries) {
+      if (entry.startsWith('.')) continue;
+      const itemUri = `${cleanDir}${entry}`;
+
+      try {
+        const info = await FileSystem.getInfoAsync(itemUri);
+        if (!info.exists) continue;
+
+        if (info.isDirectory) {
+          const existingFolder = matchExistingFolder(prevFolders, itemUri, entry, parentFolderId);
+          const folderId = existingFolder?.id || generateFolderId(entry, parentFolderId);
+
+          const folderObj: GaboFolder = {
+            id: folderId,
+            name: entry,
+            folderId: parentFolderId,
+            createdAt: info.modificationTime
+              ? info.modificationTime * 1000
+              : existingFolder?.createdAt || Date.now(),
+            updatedAt: info.modificationTime
+              ? info.modificationTime * 1000
+              : existingFolder?.updatedAt || Date.now(),
+            safUri: itemUri,
+          };
+          foundFolders.push(folderObj);
+
+          const sub = await scanLocalDirectoryRecursive(
+            itemUri,
+            folderId,
+            depth + 1,
+            prevFiles,
+            prevFolders
+          );
+          foundFiles.push(...sub.files);
+          foundFolders.push(...sub.folders);
+        } else {
+          const finalFileName = normalizeGaboFileName(entry);
+          const existingFile = matchExistingFile(
+            prevFiles,
+            itemUri,
+            finalFileName,
+            parentFolderId
+          );
+
+          let content = existingFile?.content || '';
+          if (!content) {
+            try {
+              content = await FileSystem.readAsStringAsync(itemUri);
+            } catch {
+              // ignore
+            }
+          }
+
+          const fileId = existingFile?.id || generateFileId(finalFileName, parentFolderId);
+
+          const fileObj: GaboFile = {
+            id: fileId,
+            name: finalFileName,
+            folderId: parentFolderId,
+            content,
+            createdAt: info.modificationTime
+              ? info.modificationTime * 1000
+              : existingFile?.createdAt || Date.now(),
+            updatedAt: info.modificationTime
+              ? info.modificationTime * 1000
+              : existingFile?.updatedAt || Date.now(),
+            safUri: itemUri,
+          };
+          foundFiles.push(fileObj);
+        }
+      } catch (err) {
+        console.warn('Error reading local entry:', itemUri, err);
+      }
+    }
+  } catch (err) {
+    console.warn('Error scanning local directory:', dirUri, err);
+  }
+
+  return { files: foundFiles, folders: foundFolders };
+}
+
+async function scanPhysicalWorkspace(
+  targetUri: string | null,
+  currentFiles: GaboFile[] = [],
+  currentFolders: GaboFolder[] = []
+): Promise<{ files: GaboFile[]; folders: GaboFolder[] }> {
+  if (!targetUri) return { files: [], folders: [] };
+
+  try {
+    if (Platform.OS === 'android' && targetUri.startsWith('content://')) {
+      return await scanSafDirectoryRecursive(targetUri, null, 0, currentFiles, currentFolders);
+    } else if (targetUri.startsWith('file://')) {
+      return await scanLocalDirectoryRecursive(targetUri, null, 0, currentFiles, currentFolders);
+    }
+  } catch (err) {
+    console.warn('scanPhysicalWorkspace error:', err);
+  }
+  return { files: [], folders: [] };
 }
 
 /**
@@ -96,6 +390,13 @@ export function FileProvider({ children }: { children: React.ReactNode }) {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [workspaceUri, setWorkspaceUri] = useState<string | null>(null);
   const [workspaceName, setWorkspaceName] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const filesRef = useRef(files);
+  filesRef.current = files;
+  const foldersRef = useRef(folders);
+  foldersRef.current = folders;
+  const isScanningRef = useRef(false);
 
   // Validación de existencia física de la carpeta de trabajo
   const checkFolderPhysicallyExists = useCallback(async (uri: string | null): Promise<boolean> => {
@@ -115,6 +416,7 @@ export function FileProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const clearWorkspace = useCallback(async () => {
+    setIsLoading(false);
     setWorkspaceUri(null);
     setWorkspaceName(null);
     setFiles([]);
@@ -129,6 +431,57 @@ export function FileProvider({ children }: { children: React.ReactNode }) {
     await saveOpenTabs([]);
   }, []);
 
+  const syncPhysicalFiles = useCallback(
+    async (targetUri?: string | null) => {
+      const uriToScan = targetUri !== undefined ? targetUri : workspaceUri;
+      if (!uriToScan) {
+        setFiles([]);
+        setFolders([]);
+        setIsLoading(false);
+        await saveAllFiles([]);
+        await saveAllFolders([]);
+        return;
+      }
+
+      if (isScanningRef.current) return;
+      isScanningRef.current = true;
+
+      try {
+        const { files: physicalFiles, folders: physicalFolders } = await scanPhysicalWorkspace(
+          uriToScan,
+          filesRef.current,
+          foldersRef.current
+        );
+
+        setFiles(physicalFiles);
+        setFolders(physicalFolders);
+        await saveAllFiles(physicalFiles);
+        await saveAllFolders(physicalFolders);
+
+        // Limpiar pestañas de archivos que ya no existan físicamente
+        const validFileIds = new Set(physicalFiles.map((f) => f.id));
+        setOpenTabsState((prevTabs) => {
+          const nextTabs = prevTabs.filter((id) => validFileIds.has(id));
+          saveOpenTabs(nextTabs);
+          return nextTabs;
+        });
+
+        setActiveFileIdState((prevActive) => {
+          if (prevActive && !validFileIds.has(prevActive)) {
+            const nextActive = physicalFiles[0]?.id || '';
+            saveActiveFileId(nextActive);
+            return nextActive;
+          }
+          return prevActive;
+        });
+      } catch (err) {
+        console.warn('syncPhysicalFiles error:', err);
+      } finally {
+        isScanningRef.current = false;
+      }
+    },
+    [workspaceUri]
+  );
 
   const pickWorkspaceFolder = useCallback(async (): Promise<boolean> => {
     try {
@@ -137,12 +490,40 @@ export function FileProvider({ children }: { children: React.ReactNode }) {
       if (!permissions.granted) return false;
       const uri = permissions.directoryUri;
       const name = extractFolderName(uri);
+
+      // 1. REINICIO SÍNCRONO INMEDIATO:
+      // Poner isLoading = true y vaciar de golpe los archivos y carpetas para evitar parpadeos
+      setIsLoading(true);
+      setFiles([]);
+      setFolders([]);
+      setCurrentFolderId(null);
+      setActiveFileIdState('');
+      setOpenTabsState([]);
       setWorkspaceUri(uri);
       setWorkspaceName(name);
+
       await saveWorkspace(uri, name);
+      await saveAllFiles([]);
+      await saveAllFolders([]);
+      await saveActiveFileId('');
+      await saveOpenTabs([]);
+
+      // 2. Cargar en tiempo real los archivos y carpetas físicos reales de la nueva carpeta elegida
+      const { files: loadedFiles, folders: loadedFolders } = await scanPhysicalWorkspace(
+        uri,
+        [],
+        []
+      );
+      setFiles(loadedFiles);
+      setFolders(loadedFolders);
+      await saveAllFiles(loadedFiles);
+      await saveAllFolders(loadedFolders);
+      setIsLoading(false);
+
       return true;
     } catch (err) {
       console.warn('pickWorkspaceFolder error:', err);
+      setIsLoading(false);
       return false;
     }
   }, []);
@@ -158,9 +539,12 @@ export function FileProvider({ children }: { children: React.ReactNode }) {
         [{ text: 'Seleccionar carpeta', onPress: () => { pickWorkspaceFolder(); } }]
       );
       return false;
+    } else {
+      // Si la carpeta existe y la app volvió a primer plano, sincronizar en tiempo real con disco físico
+      await syncPhysicalFiles(workspaceUri);
     }
     return true;
-  }, [workspaceUri, checkFolderPhysicallyExists, clearWorkspace, pickWorkspaceFolder]);
+  }, [workspaceUri, checkFolderPhysicallyExists, clearWorkspace, pickWorkspaceFolder, syncPhysicalFiles]);
 
   // Inicialización y verificación de existencia al arrancar
   useEffect(() => {
@@ -182,15 +566,44 @@ export function FileProvider({ children }: { children: React.ReactNode }) {
       setWorkspaceName(validWorkspace ? data.workspaceName : null);
 
       if (validWorkspace) {
+        // Carga preliminar
         setFiles(data.files);
         setFolders(data.folders);
         setActiveFileIdState(data.activeFileId);
         setOpenTabsState(data.openTabs);
+
+        // Sincronización inmediata con disco físico en tiempo real
+        try {
+          const { files: realFiles, folders: realFolders } = await scanPhysicalWorkspace(
+            validWorkspace,
+            data.files,
+            data.folders
+          );
+          setFiles(realFiles);
+          setFolders(realFolders);
+          await saveAllFiles(realFiles);
+          await saveAllFolders(realFolders);
+
+          const validIds = new Set(realFiles.map((f) => f.id));
+          const nextTabs = data.openTabs.filter((id) => validIds.has(id));
+          setOpenTabsState(nextTabs);
+          await saveOpenTabs(nextTabs);
+
+          if (data.activeFileId && !validIds.has(data.activeFileId)) {
+            const nextActive = realFiles[0]?.id || '';
+            setActiveFileIdState(nextActive);
+            await saveActiveFileId(nextActive);
+          }
+        } catch (syncErr) {
+          console.warn('Initial storage physical sync error:', syncErr);
+        }
       } else {
         setFiles([]);
         setFolders([]);
         setActiveFileIdState('');
         setOpenTabsState([]);
+        await saveAllFiles([]);
+        await saveAllFolders([]);
       }
     });
   }, [checkFolderPhysicallyExists]);
@@ -474,14 +887,20 @@ export function FileProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      setFiles((prev) => {
-        const next = prev.filter((f) => f.id !== id);
-        saveAllFiles(next);
-        return next;
-      });
       closeTab(id);
+
+      const nextFiles = files.filter((f) => f.id !== id);
+      setFiles(nextFiles);
+      await saveAllFiles(nextFiles);
+
+      // Re-verificación física en tiempo real para purgar cualquier inconsistencia
+      if (workspaceUri) {
+        const { files: verifiedFiles } = await scanPhysicalWorkspace(workspaceUri, nextFiles, folders);
+        setFiles(verifiedFiles);
+        await saveAllFiles(verifiedFiles);
+      }
     },
-    [closeTab, files]
+    [closeTab, files, folders, workspaceUri]
   );
 
   const duplicateFile = useCallback(
@@ -520,23 +939,58 @@ export function FileProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Cierra pestañas asociadas a archivos dentro de esta carpeta
-      const deletedFiles = files.filter((f) => f.folderId === id);
+      // Encontrar todos los IDs de carpetas que son descendientes recursivos
+      const allDeletedFolderIds = new Set<string>([id]);
+      let addedMore = true;
+      while (addedMore) {
+        addedMore = false;
+        for (const f of folders) {
+          if (f.folderId && allDeletedFolderIds.has(f.folderId) && !allDeletedFolderIds.has(f.id)) {
+            allDeletedFolderIds.add(f.id);
+            addedMore = true;
+          }
+        }
+      }
+
+      // Si el explorador estaba dentro de la carpeta eliminada, volver al padre o raíz
+      setCurrentFolderId((prev) => {
+        if (prev && allDeletedFolderIds.has(prev)) {
+          return target?.folderId || null;
+        }
+        return prev;
+      });
+
+      // Cerrar pestañas asociadas a archivos dentro de estas carpetas
+      const deletedFiles = files.filter(
+        (f) => f.folderId && allDeletedFolderIds.has(f.folderId)
+      );
       deletedFiles.forEach((f) => closeTab(f.id));
 
-      setFolders((prev) => {
-        const next = prev.filter((f) => f.id !== id && f.folderId !== id);
-        saveAllFolders(next);
-        return next;
-      });
+      // Limpia de inmediato el estado de archivos y carpetas eliminados
+      const nextFolders = folders.filter((f) => !allDeletedFolderIds.has(f.id));
+      const nextFiles = files.filter(
+        (f) => !f.folderId || !allDeletedFolderIds.has(f.folderId)
+      );
 
-      setFiles((prev) => {
-        const next = prev.filter((f) => f.folderId !== id);
-        saveAllFiles(next);
-        return next;
-      });
+      setFolders(nextFolders);
+      setFiles(nextFiles);
+      await saveAllFolders(nextFolders);
+      await saveAllFiles(nextFiles);
+
+      // Re-consultar en tiempo real el almacenamiento físico (FileSystem.readDirectoryAsync)
+      if (workspaceUri) {
+        const { files: verifiedFiles, folders: verifiedFolders } = await scanPhysicalWorkspace(
+          workspaceUri,
+          nextFiles,
+          nextFolders
+        );
+        setFiles(verifiedFiles);
+        setFolders(verifiedFolders);
+        await saveAllFiles(verifiedFiles);
+        await saveAllFolders(verifiedFolders);
+      }
     },
-    [closeTab, files, folders]
+    [closeTab, files, folders, workspaceUri]
   );
 
   return (
@@ -550,6 +1004,7 @@ export function FileProvider({ children }: { children: React.ReactNode }) {
         currentFolderId,
         workspaceUri,
         workspaceName,
+        isLoading,
         setCurrentFolderId,
         setActiveFileId,
         openFile,
@@ -567,6 +1022,7 @@ export function FileProvider({ children }: { children: React.ReactNode }) {
         clearWorkspace,
         navigateUp,
         verifyWorkspaceExists,
+        syncPhysicalFiles,
       }}
     >
       {children}

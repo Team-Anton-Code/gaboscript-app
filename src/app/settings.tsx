@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   BackHandler,
@@ -24,7 +24,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
 
   const screenHeight = Dimensions.get('window').height;
-  const slideY = useRef(new Animated.Value(screenHeight)).current;
+  const [slideY] = useState(() => new Animated.Value(screenHeight));
   const isClosingRef = useRef(false);
 
   useEffect(() => {

@@ -2,18 +2,18 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import {
-  Animated,
-  Dimensions,
-  Easing,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Animated,
+    Dimensions,
+    Easing,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/ThemeContext';
@@ -53,7 +53,7 @@ export default function OutputPanel({
   const isClosingRef = useRef(false);
 
   const screenHeight = Dimensions.get('window').height;
-  const slideY = useRef(new Animated.Value(screenHeight)).current;
+  const [slideY] = useState(() => new Animated.Value(screenHeight));
 
   const displayName = fileName || algorithmName || 'Terminal';
   const topInset = Math.max(insets.top, Platform.OS === 'android' ? 24 : 0);

@@ -1,19 +1,21 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    Alert,
-    Animated,
-    BackHandler,
-    Dimensions,
-    Easing,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  BackHandler,
+  Dimensions,
+  Easing,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import GaboFileIcon from '../components/GaboFileIcon';
@@ -36,7 +38,7 @@ export default function ExplorerScreen() {
   const { theme } = useAppTheme();
   const insets = useSafeAreaInsets();
   const screenWidth = Dimensions.get('window').width;
-  const slideX = useRef(new Animated.Value(-screenWidth)).current;
+  const [slideX] = useState(() => new Animated.Value(-screenWidth));
   const isClosingRef = useRef(false);
 
   // Animación suave de entrada: deslizar de izquierda a derecha (slide right)
@@ -70,6 +72,7 @@ export default function ExplorerScreen() {
     currentFolderId,
     workspaceUri,
     workspaceName,
+    isLoading,
     setCurrentFolderId,
     navigateUp,
     pickWorkspaceFolder,
@@ -82,7 +85,21 @@ export default function ExplorerScreen() {
     renameFolder,
     deleteFolder,
     duplicateFile,
+    syncPhysicalFiles,
   } = useFiles();
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Sincronizar en tiempo real el contenido del almacenamiento físico al entrar al explorador
+  useEffect(() => {
+    syncPhysicalFiles();
+  }, [syncPhysicalFiles]);
+
+  const onRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await syncPhysicalFiles();
+    setIsRefreshing(false);
+  }, [syncPhysicalFiles]);
 
   // Hardware back button en Android: navegar arriba en carpetas o cerrar con animación suave
   useEffect(() => {
@@ -97,7 +114,7 @@ export default function ExplorerScreen() {
 
     const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => subscription.remove();
-  }, [currentFolderId, navigateUp]);
+  }, [currentFolderId, navigateUp, handleClose]);
 
   // Search filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -131,8 +148,10 @@ export default function ExplorerScreen() {
     if (!currentFolderId) return crumbs;
 
     const path: { id: string; name: string }[] = [];
+    const visited = new Set<string>();
     let curr: GaboFolder | undefined = folders.find((f) => f.id === currentFolderId);
-    while (curr) {
+    while (curr && !visited.has(curr.id)) {
+      visited.add(curr.id);
       path.unshift({ id: curr.id, name: curr.name });
       curr = curr.folderId ? folders.find((f) => f.id === curr?.folderId) : undefined;
     }
@@ -260,8 +279,8 @@ export default function ExplorerScreen() {
         text: 'Eliminar',
         style: 'destructive',
         onPress: async () => {
-          await deleteFile(file.id);
           setShowFileOptions(false);
+          await deleteFile(file.id);
         },
       },
     ]);
@@ -270,15 +289,15 @@ export default function ExplorerScreen() {
   const handleDeleteFolder = (folder: GaboFolder) => {
     Alert.alert(
       'Eliminar carpeta',
-      `¿Deseas eliminar "${folder.name}" y mover sus archivos a la raíz?`,
+      `¿Deseas eliminar permanentemente la carpeta "${folder.name}" y todos sus archivos?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Eliminar',
           style: 'destructive',
           onPress: async () => {
-            await deleteFolder(folder.id);
             setShowFolderOptions(false);
+            await deleteFolder(folder.id);
           },
         },
       ]
@@ -469,11 +488,27 @@ export default function ExplorerScreen() {
       </View>
 
       {/* Main List Area: Hierarchical (Carpetas first, Archivos second) */}
-      <ScrollView
-        style={styles.listContainer}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      >
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.acento} />
+          <Text style={[styles.loadingText, { color: theme.textoSecundario }]}>
+            Cargando archivos...
+          </Text>
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.listContainer}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              colors={[theme.acento]}
+              tintColor={theme.acento}
+            />
+          }
+        >
         {/* CARPETAS SECTION (Always top) */}
         {displayedFolders.length > 0 && (
           <View style={styles.section}>
@@ -637,6 +672,7 @@ export default function ExplorerScreen() {
           )}
         </View>
       </ScrollView>
+      )}
 
       {/* Bottom Action Buttons: Se retira el signo '+' del texto ya que tiene icono */}
       <View
@@ -1205,6 +1241,16 @@ export default function ExplorerScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
   },
   header: {
     height: 56,
