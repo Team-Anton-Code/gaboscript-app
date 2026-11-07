@@ -1,15 +1,19 @@
-import React from 'react';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useEffect, useRef } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
+  Animated,
+  BackHandler,
+  Dimensions,
+  Easing,
+  Platform,
   ScrollView,
   StyleSheet,
-  Platform,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAppTheme } from '../theme/ThemeContext';
 import { DARK_THEMES, LIGHT_THEMES } from '../theme/themes';
 import { Theme } from '../theme/types';
@@ -18,6 +22,43 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { theme, preference, setPreference } = useAppTheme();
   const insets = useSafeAreaInsets();
+
+  const screenHeight = Dimensions.get('window').height;
+  const slideY = useRef(new Animated.Value(screenHeight)).current;
+  const isClosingRef = useRef(false);
+
+  useEffect(() => {
+    // Animación suave de entrada: deslizar hacia arriba
+    Animated.timing(slideY, {
+      toValue: 0,
+      duration: 260,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [slideY]);
+
+  const handleClose = () => {
+    if (isClosingRef.current) return;
+    isClosingRef.current = true;
+    // Animación suave de salida: deslizar completamente hacia abajo antes de desmontar
+    Animated.timing(slideY, {
+      toValue: screenHeight,
+      duration: 240,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      router.back();
+    });
+  };
+
+  // Interceptar el botón físico de retroceso en Android
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleClose();
+      return true;
+    });
+    return () => sub.remove();
+  }, []);
 
   const renderThemeCard = (t: Theme) => {
     const isSelected = preference === t.id;
@@ -181,33 +222,35 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: theme.fondo,
-          paddingTop: insets.top,
-          paddingBottom: insets.bottom,
-          paddingLeft: insets.left,
-          paddingRight: insets.right,
-        },
-      ]}
-    >
-      {/* Header */}
-      <View
+    <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+      <Animated.View
         style={[
-          styles.header,
+          styles.container,
           {
             backgroundColor: theme.fondo,
-            borderBottomColor: theme.borde,
+            paddingTop: insets.top,
+            paddingBottom: insets.bottom,
+            paddingLeft: insets.left,
+            paddingRight: insets.right,
+            transform: [{ translateY: slideY }],
           },
         ]}
       >
-        <TouchableOpacity
-          style={styles.headerBtn}
-          activeOpacity={0.7}
-          onPress={() => router.back()}
+        {/* Header */}
+        <View
+          style={[
+            styles.header,
+            {
+              backgroundColor: theme.fondo,
+              borderBottomColor: theme.borde,
+            },
+          ]}
         >
+          <TouchableOpacity
+            style={styles.headerBtn}
+            activeOpacity={0.7}
+            onPress={handleClose}
+          >
           <MaterialCommunityIcons
             name="chevron-left"
             size={28}
@@ -288,8 +331,9 @@ export default function SettingsScreen() {
           </View>
         </View>
       </ScrollView>
-    </View>
-  );
+    </Animated.View>
+  </View>
+);
 }
 
 const styles = StyleSheet.create({

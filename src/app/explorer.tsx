@@ -1,8 +1,12 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Alert,
+    Animated,
+    BackHandler,
+    Dimensions,
+    Easing,
     Modal,
     ScrollView,
     StyleSheet,
@@ -31,6 +35,34 @@ export default function ExplorerScreen() {
   const router = useRouter();
   const { theme } = useAppTheme();
   const insets = useSafeAreaInsets();
+  const screenWidth = Dimensions.get('window').width;
+  const slideX = useRef(new Animated.Value(-screenWidth)).current;
+  const isClosingRef = useRef(false);
+
+  // Animación suave de entrada: deslizar de izquierda a derecha (slide right)
+  useEffect(() => {
+    Animated.timing(slideX, {
+      toValue: 0,
+      duration: 260,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [slideX]);
+
+  // Animación suave de salida: deslizar de derecha a izquierda (slide left)
+  const handleClose = (callback?: () => void) => {
+    if (isClosingRef.current) return;
+    isClosingRef.current = true;
+    Animated.timing(slideX, {
+      toValue: -screenWidth,
+      duration: 240,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      if (callback) callback();
+      router.back();
+    });
+  };
   const {
     files,
     folders,
@@ -51,6 +83,21 @@ export default function ExplorerScreen() {
     deleteFolder,
     duplicateFile,
   } = useFiles();
+
+  // Hardware back button en Android: navegar arriba en carpetas o cerrar con animación suave
+  useEffect(() => {
+    const onBackPress = () => {
+      if (currentFolderId) {
+        navigateUp();
+      } else {
+        handleClose();
+      }
+      return true;
+    };
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
+  }, [currentFolderId, navigateUp]);
 
   // Search filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -117,7 +164,7 @@ export default function ExplorerScreen() {
   // Actions
   const handleOpenFile = (fileId: string) => {
     openFile(fileId);
-    router.back();
+    handleClose();
   };
 
   // Enforce mandatory workspace before creating any file
@@ -174,7 +221,7 @@ export default function ExplorerScreen() {
       await createFile(newFileName.trim(), currentFolderId);
       setNewFileName('');
       setShowNewFileModal(false);
-      router.back();
+      handleClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al crear archivo';
       Alert.alert('Error', msg);
@@ -239,39 +286,41 @@ export default function ExplorerScreen() {
   };
 
   return (
-    <View
-      style={[
-        styles.safeArea,
-        {
-          backgroundColor: theme.fondo,
-          paddingTop: insets.top,
-          paddingBottom: insets.bottom,
-          paddingLeft: insets.left,
-          paddingRight: insets.right,
-        },
-      ]}
-    >
-      {/* Top Header Bar: Se elimina el icono de tres puntos (...). Únicamente queda el botón de Tema */}
-      <View
+    <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+      <Animated.View
         style={[
-          styles.header,
+          styles.safeArea,
           {
             backgroundColor: theme.fondo,
-            borderBottomColor: theme.borde,
+            transform: [{ translateX: slideX }],
+            paddingTop: insets.top,
+            paddingBottom: insets.bottom,
+            paddingLeft: insets.left,
+            paddingRight: insets.right,
           },
         ]}
       >
-        <TouchableOpacity
-          style={styles.headerBtn}
-          activeOpacity={0.7}
-          onPress={() => {
-            if (currentFolderId) {
-              navigateUp();
-            } else {
-              router.back();
-            }
-          }}
+        {/* Top Header Bar: Se elimina el icono de tres puntos (...). Únicamente queda el botón de Tema */}
+        <View
+          style={[
+            styles.header,
+            {
+              backgroundColor: theme.fondo,
+              borderBottomColor: theme.borde,
+            },
+          ]}
         >
+          <TouchableOpacity
+            style={styles.headerBtn}
+            activeOpacity={0.7}
+            onPress={() => {
+              if (currentFolderId) {
+                navigateUp();
+              } else {
+                handleClose();
+              }
+            }}
+          >
           <MaterialCommunityIcons
             name="chevron-left"
             size={28}
@@ -1148,6 +1197,7 @@ export default function ExplorerScreen() {
           </View>
         </TouchableOpacity>
       </Modal>
+      </Animated.View>
     </View>
   );
 }

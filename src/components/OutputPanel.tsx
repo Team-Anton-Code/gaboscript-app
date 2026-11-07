@@ -2,15 +2,18 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import {
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Animated,
+  Dimensions,
+  Easing,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/ThemeContext';
@@ -46,9 +49,52 @@ export default function OutputPanel({
   const inputRef = useRef<any>(null);
 
   const [inputText, setInputText] = useState('');
+  const [modalVisible, setModalVisible] = useState(visible);
+  const isClosingRef = useRef(false);
+
+  const screenHeight = Dimensions.get('window').height;
+  const slideY = useRef(new Animated.Value(screenHeight)).current;
 
   const displayName = fileName || algorithmName || 'Terminal';
   const topInset = Math.max(insets.top, Platform.OS === 'android' ? 24 : 0);
+
+  // Manejar apertura y cierre con animación suave completa
+  useEffect(() => {
+    if (visible) {
+      isClosingRef.current = false;
+      setModalVisible(true);
+      Animated.timing(slideY, {
+        toValue: 0,
+        duration: 260,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    } else if (modalVisible && !isClosingRef.current) {
+      isClosingRef.current = true;
+      Animated.timing(slideY, {
+        toValue: screenHeight,
+        duration: 240,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }).start(() => {
+        setModalVisible(false);
+      });
+    }
+  }, [visible, modalVisible, screenHeight, slideY]);
+
+  const handleRequestClose = () => {
+    if (isClosingRef.current) return;
+    isClosingRef.current = true;
+    Animated.timing(slideY, {
+      toValue: screenHeight,
+      duration: 240,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      setModalVisible(false);
+      onClose();
+    });
+  };
 
   // Auto-scroll al final cada vez que se agregan líneas a los logs o se solicita entrada
   useEffect(() => {
@@ -79,24 +125,26 @@ export default function OutputPanel({
 
   return (
     <Modal
-      visible={visible}
-      animationType="slide"
+      visible={modalVisible}
+      animationType="none"
       transparent={true}
       statusBarTranslucent={true}
-      onRequestClose={onClose}
+      onRequestClose={handleRequestClose}
     >
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      <View
-        style={[
-          styles.fullScreen,
-          {
-            backgroundColor: theme.fondo,
-            paddingBottom: insets.bottom,
-            paddingLeft: insets.left,
-            paddingRight: insets.right,
-          },
-        ]}
-      >
+      <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+        <Animated.View
+          style={[
+            styles.fullScreen,
+            {
+              backgroundColor: theme.fondo,
+              paddingBottom: insets.bottom,
+              paddingLeft: insets.left,
+              paddingRight: insets.right,
+              transform: [{ translateY: slideY }],
+            },
+          ]}
+        >
         <KeyboardAvoidingView
           style={styles.keyboardContainer}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -143,7 +191,7 @@ export default function OutputPanel({
               <TouchableOpacity
                 style={styles.iconBtn}
                 activeOpacity={0.7}
-                onPress={onClose}
+                onPress={handleRequestClose}
                 hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
               >
                 <MaterialCommunityIcons
@@ -261,8 +309,9 @@ export default function OutputPanel({
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
-      </View>
-    </Modal>
+      </Animated.View>
+    </View>
+  </Modal>
   );
 }
 

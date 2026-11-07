@@ -34,19 +34,17 @@ function RootNavigator() {
         <Stack.Screen
           name="explorer"
           options={{
-            animation: 'slide_from_left',
+            animation: 'none',
             presentation: 'transparentModal',
             contentStyle: { backgroundColor: 'transparent' },
-            gestureEnabled: true,
           }}
         />
         <Stack.Screen
           name="settings"
           options={{
-            animation: 'slide_from_bottom',
+            animation: 'none',
             presentation: 'transparentModal',
             contentStyle: { backgroundColor: 'transparent' },
-            gestureEnabled: true,
           }}
         />
       </Stack>
