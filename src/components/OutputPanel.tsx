@@ -121,6 +121,7 @@ export default function OutputPanel({
     const value = inputText;
     setInputText('');
     onSubmitInput(value);
+    inputRef.current?.focus();
   };
 
   return (
@@ -279,11 +280,15 @@ export default function OutputPanel({
                   : 'Programa inactivo'
               }
               placeholderTextColor={theme.textoSecundario}
-              returnKeyType="send"
+              keyboardType={Platform.OS === 'android' ? 'visible-password' : 'default'}
+              multiline={false}
+              returnKeyType="done"
+              blurOnSubmit={false}
               onSubmitEditing={handleSend}
               editable={isRunning}
               autoCapitalize="none"
               autoCorrect={false}
+              spellCheck={false}
             />
             <TouchableOpacity
               onPress={handleSend}

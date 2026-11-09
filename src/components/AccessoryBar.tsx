@@ -1,10 +1,10 @@
 import {
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useAppTheme } from '../theme/ThemeContext';
 
@@ -23,7 +23,7 @@ export default function AccessoryBar({ onInsertText, onInsertTab }: AccessoryBar
   const { theme } = useAppTheme();
 
   // 1. Barra de Palabras Clave y Comandos en el orden estricto solicitado:
-  // 1. mostrar <<
+  // 1. Mostrar <<
   // 2. Leer >>
   // 3. Si
   // 4. Sino
@@ -40,7 +40,7 @@ export default function AccessoryBar({ onInsertText, onInsertTab }: AccessoryBar
   // 15. Tipos de variable (Entero, Real, Cadena, Booleano, Caracter, etc.)
   const keywords: KeywordItem[] = [
     {
-      label: 'mostrar <<',
+      label: 'Mostrar <<',
       type: 'io',
       action: () => ({ text: 'Mostrar << ', cursorOffset: 11 }),
     },
@@ -170,8 +170,8 @@ export default function AccessoryBar({ onInsertText, onInsertTab }: AccessoryBar
   ];
 
   // 2. Barra de Símbolos Rápidos en el orden estricto solicitado:
-  // Tab ; " << >> = < > ( ) { }
-  const symbols = ['Tab', ';', '"', '<<', '>>', '=', '<', '>', '(', ')', '{', '}'];
+  // Tab : ; " << >> = < > ( ) { } [ ]
+  const symbols = ['Tab', ':', ';', '"', '<<', '>>', '=', '<', '>', '(', ')', '{', '}', '[', ']'];
 
   const getKeywordColor = (item: KeywordItem) => {
     switch (item.type) {
