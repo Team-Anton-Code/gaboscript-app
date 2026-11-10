@@ -1,7 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { GaboFile } from '../services/storage';
-import { CodeToken, tokenizeLine } from './gaboscript';
 
 /**
  * Tabla CRC32 para la generación ZIP sin compresión (Store).
@@ -194,52 +193,332 @@ function escapeXml(str: string): string {
     .replace(/'/g, '&apos;');
 }
 
+interface DocxToken {
+  text: string;
+  color: string;
+  bold?: boolean;
+  italic?: boolean;
+}
+
+// 1. AZUL COBALTO (#0033B3): Modularidad y estructura
+const MODULARITY_KEYWORDS = new Set([
+  'algoritmo',
+  'inicio',
+  'fin',
+  'procedimiento',
+  'fin_procedimiento',
+  'funcion',
+  'fin_funcion',
+  'var',
+  'devolver',
+  'registro',
+  'fin_registro',
+]);
+
+// 2. AZUL CERCETA / ENTRADA Y SALIDA (#005A8C): Instrucciones I/O
+const IO_KEYWORDS = new Set([
+  'mostrar',
+  'leer',
+  'imprimir',
+]);
+
+// 3. MORADO / PÚRPURA DE CONTROL (#7A1FA2): Estructuras condicionales y bucles
+const CONTROL_KEYWORDS = new Set([
+  'si',
+  'entonces',
+  'sino',
+  'fin_si',
+  'para',
+  'hasta',
+  'hacer',
+  'fin_para',
+  'mientras',
+  'fin_mientras',
+  'repetir',
+  'fin_repetir',
+  'en_caso',
+  'caso',
+  'otro_caso',
+  'fin_caso',
+  'sea',
+]);
+
+// 4. CIAN / VERDE PETRÓLEO (#00627A): Tipos de datos
+const TYPE_KEYWORDS = new Set([
+  'entero',
+  'real',
+  'cadena',
+  'booleano',
+  'caracter',
+]);
+
+// 5. MAGENTA / OPERADORES LÓGICOS Y RELACIONALES (#AF00DB): Conectores lógicos
+const LOGICAL_KEYWORDS = new Set([
+  'or',
+  'and',
+  'not',
+  'mod',
+  'div',
+]);
+
+// 6. VERDE ESMERALDA (#098658): Valores lógicos booleanos
+const BOOLEAN_KEYWORDS = new Set([
+  'true',
+  'false',
+  'verdadero',
+  'falso',
+]);
+
 /**
- * Colores de sintaxis para Word (fondo blanco, alta legibilidad).
- * Basado en la paleta oficial de VS Code Light+.
+ * Extrae nombres de funciones y procedimientos definidos por el usuario en el archivo.
  */
-function getTokenColor(type: CodeToken['type']): { color: string; italic?: boolean; bold?: boolean } {
-  switch (type) {
-    case 'keyword':
-      return { color: '0000FF', bold: true }; // Azul oscuro/púrpura
-    case 'type':
-      return { color: '267F99', bold: true }; // Verde azulado / Teal
-    case 'string':
-      return { color: 'A31515' }; // Rojo oscuro carmesí
-    case 'number':
-      return { color: '098658' }; // Verde oscuro
-    case 'comment':
-      return { color: '008000', italic: true }; // Verde comentario en cursiva
-    case 'function':
-      return { color: '795E26' }; // Marrón/Ocre funciones
-    case 'operator':
-      return { color: '1E293B', bold: true }; // Operadores oscuros
-    case 'identifier':
-      return { color: '001080' }; // Azul identificadores
-    default:
-      return { color: '1E293B' }; // Texto estándar
+function extractSubprograms(content: string): Set<string> {
+  const subprograms = new Set<string>([
+    'poblardb',
+    'menuop',
+    'confirmar',
+    'finalizar',
+    'compinv',
+  ]);
+  const regex = /(?:procedimiento|funcion)\s+([a-zA-Z_\u00C0-\u017F][a-zA-Z0-9_\u00C0-\u017F]*)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = regex.exec(content)) !== null) {
+    if (m[1]) {
+      subprograms.add(m[1].toLowerCase());
+    }
   }
+  return subprograms;
 }
 
 /**
- * Convierte una línea de código en runs XML coloreados para OpenXML.
+ * Tokeniza una línea de código GaboScript aplicando el resaltado estricto
+ * con los colores HEX exactos requeridos.
  */
-function lineToWordRuns(line: string): string {
-  const tokens = tokenizeLine(line);
+function tokenizeDocxLine(line: string, subprograms: Set<string>): DocxToken[] {
+  const tokens: DocxToken[] = [];
+  let i = 0;
+  const n = line.length;
+  let prevWord = '';
+
+  while (i < n) {
+    // 10. VERDE BOSQUE (#2E6B3E): Comentarios explicativos // ... o /* ... */
+    if (line.slice(i, i + 2) === '//') {
+      tokens.push({ text: line.slice(i), color: '2E6B3E', italic: true });
+      break;
+    }
+    if (line.slice(i, i + 2) === '/*') {
+      const endIdx = line.indexOf('*/', i + 2);
+      if (endIdx === -1) {
+        tokens.push({ text: line.slice(i), color: '2E6B3E', italic: true });
+        break;
+      } else {
+        tokens.push({ text: line.slice(i, endIdx + 2), color: '2E6B3E', italic: true });
+        i = endIdx + 2;
+        continue;
+      }
+    }
+
+    // 9. ROJO OSCURO / GRANATE (#A31515): Cadenas entre comillas dobles (o simples)
+    if (line[i] === '"' || line[i] === "'") {
+      const quote = line[i];
+      let j = i + 1;
+      while (j < n && line[j] !== quote) {
+        if (line[j] === '\\' && j + 1 < n) {
+          j += 2;
+        } else {
+          j++;
+        }
+      }
+      if (j < n) j++;
+      tokens.push({ text: line.slice(i, j), color: 'A31515' });
+      i = j;
+      continue;
+    }
+
+    // 8. MARRÓN TIERRA / PARÁMETROS (#8C4600): Modificadores E:, S:, E/S:, E/S
+    const prevChar = i > 0 ? line[i - 1] : ' ';
+    const isWordStart = !/[a-zA-Z0-9_]/.test(prevChar);
+
+    if (isWordStart) {
+      if (line.slice(i, i + 4).toUpperCase() === 'E/S:') {
+        tokens.push({ text: line.slice(i, i + 4), color: '8C4600', bold: true });
+        i += 4;
+        continue;
+      }
+      if (line.slice(i, i + 3).toUpperCase() === 'E/S') {
+        tokens.push({ text: line.slice(i, i + 3), color: '8C4600', bold: true });
+        i += 3;
+        continue;
+      }
+      if (
+        (line.slice(i, i + 2).toUpperCase() === 'E:' || line.slice(i, i + 2).toUpperCase() === 'S:') &&
+        (i + 2 >= n || !/[a-zA-Z0-9_]/.test(line[i + 2]))
+      ) {
+        tokens.push({ text: line.slice(i, i + 2), color: '8C4600', bold: true });
+        i += 2;
+        continue;
+      }
+    }
+
+    // 2. AZUL CERCETA / ENTRADA Y SALIDA (#005A8C): Operadores de flujo <<, >>
+    const twoChar = line.slice(i, i + 2);
+    if (twoChar === '<<' || twoChar === '>>') {
+      tokens.push({ text: twoChar, color: '005A8C', bold: true });
+      i += 2;
+      continue;
+    }
+
+    // 5. MAGENTA / OPERADORES LÓGICOS Y RELACIONALES (#AF00DB): <>, <=, >=, ==, !=
+    if (
+      twoChar === '<>' ||
+      twoChar === '<=' ||
+      twoChar === '>=' ||
+      twoChar === '==' ||
+      twoChar === '!='
+    ) {
+      tokens.push({ text: twoChar, color: 'AF00DB', bold: true });
+      i += 2;
+      continue;
+    }
+
+    // 5. MAGENTA / OPERADORES (#AF00DB): Asignación y comparación =, <, >
+    if (line[i] === '=' || line[i] === '<' || line[i] === '>') {
+      tokens.push({ text: line[i], color: 'AF00DB', bold: true });
+      i++;
+      continue;
+    }
+
+    // 6. VERDE ESMERALDA (#098658): Literales numéricos (0, 1, 2, 3, 4, 100, 1.6, etc.)
+    if (/\d/.test(line[i])) {
+      let j = i;
+      while (j < n && /[\d.]/.test(line[j])) {
+        j++;
+      }
+      tokens.push({ text: line.slice(i, j), color: '098658' });
+      i = j;
+      continue;
+    }
+
+    // Espacios en blanco (preservar formato e indentación)
+    if (/\s/.test(line[i])) {
+      let j = i;
+      while (j < n && /\s/.test(line[j])) {
+        j++;
+      }
+      tokens.push({ text: line.slice(i, j), color: '111111' });
+      i = j;
+      continue;
+    }
+
+    // 12. NEGRO CARBÓN (#111111): Operadores aritméticos (+, -, *) y signos de puntuación (,, :, ;, [, ], (, ))
+    if (/[+\-*/^%:,;\(\)\[\]\{\}]/.test(line[i])) {
+      tokens.push({ text: line[i], color: '111111' });
+      i++;
+      continue;
+    }
+
+    // Palabras e identificadores
+    if (/[\p{L}_]/u.test(line[i])) {
+      let j = i;
+      while (j < n && /[\p{L}\p{N}_]/u.test(line[j])) {
+        j++;
+      }
+      const word = line.slice(i, j);
+      const lower = word.toLowerCase();
+
+      // Verificar si viene seguido de '(' para llamadas a funciones/subprogramas
+      let k = j;
+      while (k < n && /\s/.test(line[k])) k++;
+      const isCall = k < n && line[k] === '(';
+
+      if (MODULARITY_KEYWORDS.has(lower)) {
+        // 1. AZUL COBALTO (#0033B3): Modularidad y estructura
+        tokens.push({ text: word, color: '0033B3', bold: true });
+        prevWord = lower;
+      } else if (IO_KEYWORDS.has(lower)) {
+        // 2. AZUL CERCETA / ENTRADA Y SALIDA (#005A8C): Mostrar, Leer
+        tokens.push({ text: word, color: '005A8C', bold: true });
+        prevWord = lower;
+      } else if (CONTROL_KEYWORDS.has(lower)) {
+        // 3. MORADO / PÚRPURA DE CONTROL (#7A1FA2): Si, Entonces, Sino, Para, Mientras, etc.
+        tokens.push({ text: word, color: '7A1FA2', bold: true });
+        prevWord = lower;
+      } else if (TYPE_KEYWORDS.has(lower)) {
+        // 4. CIAN / VERDE PETRÓLEO (#00627A): Entero, Real, Cadena, Booleano
+        tokens.push({ text: word, color: '00627A', bold: true });
+        prevWord = lower;
+      } else if (LOGICAL_KEYWORDS.has(lower)) {
+        // 5. MAGENTA (#AF00DB): Conectores lógicos Or, And, Not
+        tokens.push({ text: word, color: 'AF00DB', bold: true });
+        prevWord = lower;
+      } else if (BOOLEAN_KEYWORDS.has(lower)) {
+        // 6. VERDE ESMERALDA (#098658): Valores lógicos True, False
+        tokens.push({ text: word, color: '098658', bold: true });
+        prevWord = lower;
+      } else if (
+        prevWord === 'procedimiento' ||
+        prevWord === 'funcion' ||
+        subprograms.has(lower) ||
+        isCall
+      ) {
+        // 7. MARRÓN MOSTAZA / IDENTIFICADOR DE SUBPROGRAMAS (#664200): Nombres de funciones/procedimientos
+        subprograms.add(lower);
+        tokens.push({ text: word, color: '664200', bold: true });
+        prevWord = lower;
+      } else {
+        // 12. NEGRO CARBÓN (#111111): Variables normales (op, i, chocoDes, chocoCant, etc.)
+        tokens.push({ text: word, color: '111111' });
+        prevWord = lower;
+      }
+
+      i = j;
+      continue;
+    }
+
+    // 12. Cualquier otro carácter: NEGRO CARBÓN (#111111)
+    tokens.push({ text: line[i], color: '111111' });
+    i++;
+  }
+
+  return tokens;
+}
+
+/**
+ * Convierte una línea de código en runs XML coloreados con Consolas para OpenXML.
+ */
+function lineToWordRuns(line: string, subprograms: Set<string>): string {
+  if (line.length === 0) {
+    return `<w:r>
+      <w:rPr>
+        <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>
+        <w:sz w:val="19"/>
+        <w:color w:val="111111"/>
+      </w:rPr>
+      <w:t xml:space="preserve"> </w:t>
+    </w:r>`;
+  }
+
+  const tokens = tokenizeDocxLine(line, subprograms);
   if (tokens.length === 0) {
-    return `<w:r><w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/><w:sz w:val="19"/><w:color w:val="1E293B"/></w:rPr><w:t xml:space="preserve"> </w:t></w:r>`;
+    return `<w:r>
+      <w:rPr>
+        <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>
+        <w:sz w:val="19"/>
+        <w:color w:val="111111"/>
+      </w:rPr>
+      <w:t xml:space="preserve"> </w:t>
+    </w:r>`;
   }
 
   return tokens
     .map((token) => {
-      const { color, italic, bold } = getTokenColor(token.type);
       return `<w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>
           <w:sz w:val="19"/>
-          <w:color w:val="${color}"/>
-          ${italic ? '<w:i/>' : ''}
-          ${bold ? '<w:b/>' : ''}
+          <w:color w:val="${token.color}"/>
+          ${token.bold ? '<w:b/>' : ''}
+          ${token.italic ? '<w:i/>' : ''}
         </w:rPr>
         <w:t xml:space="preserve">${escapeXml(token.text)}</w:t>
       </w:r>`;
@@ -248,7 +527,7 @@ function lineToWordRuns(line: string): string {
 }
 
 /**
- * Genera el paquete OpenXML completo (.docx) con resaltado de sintaxis,
+ * Genera el paquete OpenXML completo (.docx) con el resaltado estricto solicitado,
  * título limpio (nombre del algoritmo) y sin encabezados ni pies genéricos.
  */
 function buildDocx(file: GaboFile): Uint8Array {
@@ -265,12 +544,13 @@ function buildDocx(file: GaboFile): Uint8Array {
 </Relationships>`;
 
   const cleanTitle = file.name.replace(/\.(gabo|txt)$/i, '');
-  const lines = file.content.split('\n');
+  const lines = file.content.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  const subprograms = extractSubprograms(file.content);
 
   const rowsXml = lines
     .map((line, idx) => {
       const lineNum = idx + 1;
-      const runs = lineToWordRuns(line);
+      const runs = lineToWordRuns(line, subprograms);
       return `<w:tr>
         <w:tc>
           <w:tcPr>
@@ -286,7 +566,7 @@ function buildDocx(file: GaboFile): Uint8Array {
               <w:rPr>
                 <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>
                 <w:sz w:val="18"/>
-                <w:color w:val="94A3B8"/>
+                <w:color w:val="777777"/>
               </w:rPr>
               <w:t>${lineNum}</w:t>
             </w:r>
